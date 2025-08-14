@@ -11,7 +11,7 @@ export default function QRGenerator(){
   // generate once, on first render, never again:
   
  
-  const token    = useQR()
+  const {token} = useQR()
   const scanUrl = `${window.location.origin}/scan?token=${token}`;
  
   console.log("initial token",token)

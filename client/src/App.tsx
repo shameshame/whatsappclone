@@ -9,11 +9,11 @@ import { QrProvider } from "./components/context/QrContext";
 import QRGenerator from "./components/QRGenerator";
 import ScanPage from "./components/ScanPage";
 
-function WithQr({ children }: { children: React.ReactNode }) {
-  const [params] = useSearchParams();
-  const token    = params.get("token")!;
-  return <QrProvider token={token}>{children}</QrProvider>;
-}
+// function WithQr({ children }: { children: React.ReactNode }) {
+//   const [params] = useSearchParams();
+//   const token    = params.get("token")!;
+//   return <QrProvider token={token}>{children}</QrProvider>;
+// }
 
 
 
@@ -26,8 +26,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Login/>} />
        
-          <Route path="/scan" element={<WithQr><ScanPage /></WithQr>} />
-          <Route path="/qr" element={<WithQr><QRGenerator /></WithQr>} />
+          <Route path="/scan" element={<QrProvider><ScanPage /></QrProvider>} />
+          <Route path="/qr" element={<QrProvider><QRGenerator /></QrProvider>} />
        
       </Routes>
     </BrowserRouter>

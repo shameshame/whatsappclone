@@ -1,58 +1,56 @@
 import express from "express";
 import http from "http";
+
 import { Server as SocketIOServer } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createClient } from "redis";
+import { initRedis, redis } from "./redis";
+import { sessionRouter } from "./routes/session.routes";
+import { registerSocket, emitPendingIfAny } from "./services/session.service";
 import { v4 as uuidv4 } from "uuid";
+
 import cors from "cors";
 
+
+
 const app = express();
+const morgan = require("morgan")
 const server = http.createServer(app);
-const io = new SocketIOServer(server, {
-  cors: { origin: "*" }
+const io = new SocketIOServer(server, { cors: { origin: "*" } });
+
+
+async function main() {
+  await initRedis();               // <-- used to be top-level await
+  server.listen(3000, () => {
+    console.log("API on http://localhost:3000");
+  });
+}
+
+main().catch((err) => {
+  console.error("Fatal:", err);
+  process.exit(1);
 });
+
+// (Optional but recommended if you’ll run multiple server instances)
+// const pub = createClient({ url: process.env.REDIS_URL });
+// const sub = pub.duplicate();
+// await pub.connect(); await sub.connect();
+// io.adapter(createAdapter(pub, sub));
 
 app.use(cors());
+app.use(morgan("dev"));
 app.use(express.json());
 
-// In-memory store: sessionId → socketId
-const sessions = new Map();
+// make io available to routes/services
+app.set("io", io);
 
-// 1) When desktop requests a new session:
-app.post("/api/session", (req, res) => {
-  const sessionId = uuidv4();
-  // don’t set socketId yet—that comes in the WebSocket “join”
-  sessions.set(sessionId, null);
-  res.json({ sessionId });
-});
+app.use("/api/session", sessionRouter);
 
-// 2) When mobile scanner validates:
-app.post("/api/session/validate", (req, res) => {
-  const { sessionId } = req.body;
-  const socketId = sessions.get(sessionId);
-  if (socketId) {
-    io.to(socketId).emit("session-validated", { sessionId });
-    res.json({ ok: true });
-  } else {
-    res.status(404).json({ ok: false, message: "Unknown session" });
-  }
-});
-
+// WS handlers
 io.on("connection", (socket) => {
-  console.log("WS connected:", socket.id);
-
-  // 3) Desktop calls this over WS after generating sessionId
-  socket.on("join-session", ({ sessionId }) => {
-    if (sessions.has(sessionId)) {
-      sessions.set(sessionId, socket.id);
-      console.log(`Socket ${socket.id} joined session ${sessionId}`);
-    }
-  });
-
-  socket.on("disconnect", () => {
-    // clean up any sessions that pointed to this socket
-    for (const [sid, sock] of sessions.entries()) {
-      if (sock === socket.id) sessions.delete(sid);
-    }
+  socket.on("join-session", async ({ sessionId }: { sessionId: string }) => {
+    const ok = await registerSocket(sessionId, socket.id);
+    if (ok) await emitPendingIfAny(io, sessionId);
   });
 });
 
-server.listen(3000, () => console.log("Listening on http://localhost:3000"));
