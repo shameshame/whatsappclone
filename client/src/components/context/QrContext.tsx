@@ -22,7 +22,7 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
   const [validated, setValidated] = useState(false);
   const [error, setError]         = useState<string | null>(null);
 
-let currentController: AbortController | null = null;
+  let currentController: AbortController | null = null;
 
  async function  createSessionToken(){
      

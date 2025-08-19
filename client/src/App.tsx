@@ -28,7 +28,7 @@ function App() {
        
           <Route path="/scan" element={<QrProvider><ScanPage /></QrProvider>} />
           <Route path="/qr" element={<QrProvider><QRGenerator /></QrProvider>} />
-       
+          <Route path="/chat" element={<ChatWindow/>}/>
       </Routes>
     </BrowserRouter>
     

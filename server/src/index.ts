@@ -16,7 +16,7 @@ import cors from "cors";
 const app = express();
 const morgan = require("morgan")
 const server = http.createServer(app);
-const io = new SocketIOServer(server, { cors: { origin: "*" } });
+const io = new SocketIOServer(server, {path: "/socket.io", cors: { origin: "*" } });
 
 
 async function main() {

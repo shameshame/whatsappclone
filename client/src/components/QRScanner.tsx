@@ -1,5 +1,6 @@
 // src/components/QrScanner.tsx
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { useQR } from "./context/QrContext";
 import { Html5Qrcode} from "html5-qrcode";
 
@@ -7,6 +8,7 @@ import { Html5Qrcode} from "html5-qrcode";
 const QrScanner = () => {
 
   const {validate,token,validated}=useQR()
+  const navigate=useNavigate()
   const [devices, setDevices] = useState<{ id: string; label: string }[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [cameraId, setCameraId] = useState<string|null>(null);
@@ -64,7 +66,7 @@ const QrScanner = () => {
 //   return moduleSizePx;
 // }
 
-const onSuccess = async (decoded: string) => {
+const onScanSuccess = async (decoded: string) => {
       // debounce identical frames for 1.5s
       const now = Date.now();
       if (decoded === lastText.current && now - lastAt.current < 1500) return;
@@ -76,10 +78,10 @@ const onSuccess = async (decoded: string) => {
 
       // extract token if you encoded a URL
       let token = decoded;
-      try {
-        const u = new URL(decoded);
-        token = u.searchParams.get("token") || decoded;
-      } catch {}
+     
+      const url = new URL(decoded);
+      token = url.searchParams.get("token") || decoded;
+      
 
       const ok = await validate(token);
       inFlight.current = false;
@@ -88,19 +90,50 @@ const onSuccess = async (decoded: string) => {
         gotResult.current = true;
         // stop once, await so we don’t race further callbacks
             alert("✅ Login successful!");
-            alert(`Response from server : ${validated} Decoded: ${token}`)
-            setLogs(l => [...l, `✅ Response from server : ${validated} Decoded: ${token}`]);
-        try {
-          await scannerRef.current?.stop();
-          scannerRef.current?.clear();
-        } catch(error) {console.log(error)}
+            alert(`Response from server : ${ok} Decoded: ${token}`)
+            // setLogs(l => [...l, `✅ Response from server : ${validated} Decoded: ${token}`]);
+            // navigate("/chat")
+        teardown()
       }
     };
 
+const teardown = async () => {
+    let closed = false;
+    if (closed) 
+      return;
+    
+    closed = true;
+    try { await scannerRef.current?.stop(); } catch {}
+    try { scannerRef.current?.clear(); } catch {}
+};
 
 
+ async function scanHandler(){
+    if (!cameraId) return;
+    
+
+    if (started.current) return;         // avoid StrictMode double init
+    started.current = true;
+    
+    scannerRef.current = new Html5Qrcode("qr-reader");
+
+   scannerRef.current
+      .start(cameraId,
+        { fps: 10,qrbox: { width: 250, height: 250 }, },
+        onScanSuccess,
+        (err) => setLogs(l => [...l, `❌ start() error: ${err}`])
+      )
+      .catch((error) => {
+        console.error("Scanner start failed:", error);
+        setError(error);
+      });
+
+      return () => { void teardown(); };
+   
+}
 
 
+// Loading camera data
   useEffect(() => {
     Html5Qrcode.getCameras()
       .then((devices) => {
@@ -117,57 +150,11 @@ const onSuccess = async (decoded: string) => {
         setError("Could not list camera devices.");
       });
   }, []);
-
-
- async function scanHandler(){
-    if (!cameraId) return;
-    console.log("Camera Id",cameraId)
-
-    if (started.current) return;         // avoid StrictMode double init
-    started.current = true;
-    
-
-   const scanner = new Html5Qrcode("qr-reader");
-
-   
-    scanner
-      .start(cameraId,
-        { fps: 10,qrbox: { width: 250, height: 250 }, },
-        onSuccess,
-        
-        // async decoded => {
-        //   const url = new URL(decoded);
-        //   const token = url.searchParams.get("token") || "";
-        //   await validate(token);
-        
-        //   if(validated){
-        //     alert("✅ Login successful!");
-        //     setLogs(l => [...l, `✅ Response from server : ${validated} Decoded: ${token}`]);
-            
-        //   }
-        //   else
-        //     setLogs(l => [...l, `❌ Response from server : ${validated} Invalid token`]);
-          
-        //   scanner.stop();
-        // },
-        (err) => setLogs(l => [...l, `❌ start() error: ${err}`])
-      )
-      .catch((error) => {
-        console.error("Scanner start failed:", error);
-        setError(error);
-      });
-   
-}
-
   
   
   useEffect(() => {
-    
-
-    
-    scanHandler()
-
-}, [cameraId,validate]); // 
+     scanHandler()
+  }, [cameraId,validate]); // 
 
   if (error) {
     return <p className="text-red-600 p-4">{error}</p>;
