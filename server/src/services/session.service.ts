@@ -6,6 +6,23 @@ import { redis } from "../redis";
 const TTL = Number(process.env.TTL_SECONDS ?? 120);
 
 const key = (id: string) => `session:${id}`;
+export type SessionStatus = "pending" | "validated" | "used";
+
+
+export async function getStatus(sessionId: string): Promise<{ status: SessionStatus | "unknown" | "expired"; ttl: number }> {
+  const k = key(sessionId);
+  const exists = await redis.exists(k);
+  if (!exists) return { status: "unknown", ttl: -2 };
+
+  const ttl = await redis.ttl(k);
+  if (ttl <= 0) return { status: "expired", ttl };
+
+  const status = (await redis.hGet(k, "status")) as SessionStatus | null;
+  return { status: (status ?? "unknown") as any, ttl };
+}
+
+
+
 
 export async function createSession(): Promise<string> {
   const id = randomUUID();
@@ -14,6 +31,11 @@ export async function createSession(): Promise<string> {
   await redis.expire(key(id), TTL);
   return id;
 }
+
+
+
+
+
 
 export async function registerSocket(sessionId: string, socketId: string) {
   const k = key(sessionId);

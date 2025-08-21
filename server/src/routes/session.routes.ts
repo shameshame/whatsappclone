@@ -2,10 +2,18 @@
 import { Router } from "express";
 import type { Server as SocketIOServer } from "socket.io";
 import {
-  createSession, markValidated, getSocketId, consumeAndExpire
+  createSession, markValidated, getSocketId, consumeAndExpire,getStatus
 } from "../services/session.service";
 
 export const sessionRouter = Router();
+
+
+/** GET /api/session/:id/status -> { status, ttl } (desktop fallback) */
+sessionRouter.get("/:id/status",async(req,res)=>{
+  const { status, ttl } = await getStatus(req.params.id ?? "");
+  res.json({ status, ttl });
+})
+
 
 // POST /api/session  → create & return sessionId
 sessionRouter.post("/", async (req, res) => {
@@ -30,3 +38,6 @@ sessionRouter.post("/validate", async (req, res) => {
   }
   return res.json({ ok: true });
 });
+
+
+

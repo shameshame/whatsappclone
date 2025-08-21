@@ -88,11 +88,6 @@ const onScanSuccess = async (decoded: string) => {
 
       if (ok) {
         gotResult.current = true;
-        // stop once, await so we don’t race further callbacks
-            alert("✅ Login successful!");
-            alert(`Response from server : ${ok} Decoded: ${token}`)
-            // setLogs(l => [...l, `✅ Response from server : ${validated} Decoded: ${token}`]);
-            // navigate("/chat")
         teardown()
       }
     };
