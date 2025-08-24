@@ -12,22 +12,14 @@ export default function MessageBubble({ text, timestamp, isMe, avatarUrl }: Prop
 
   return (
     <div className={cn("flex items-end gap-2", isMe ? "justify-end" : "justify-start")}>
-      {/* {!isMe && (
-        <Avatar className="w-7 h-7">
-          <AvatarImage src={avatarUrl} className="w-full h-full object-cover" />
-        </Avatar>
-      )} */}
+      
 
       <div className={cn("relative px-4 py-2 rounded-xl text-sm max-w-xs min-w-[50px]  bg-green-500 border ml-auto")}>
         <p className="px-4">{text}</p>
         <span className="absolute text-[10px] right-2 bottom-[-14px] text-gray-400">{formatTime(timestamp)}</span>
       </div>
 
-      {/* {isMe && (
-        <Avatar className="w-7 h-7">
-          <AvatarImage src={avatarUrl} className="w-full h-full object-cover" />
-        </Avatar>
-      )} */}
+      
     </div>
   );
 }

@@ -3,7 +3,9 @@ import React, { createContext, useContext, useState,useEffect, useCallback, useM
 import {QRContextType} from "../../types/qrcontext"
 import { useSearchParams,useLocation } from "react-router";
 
-const QrContext = createContext<QRContextType>({token:null,validated:false,error:null,validate:async () => {return false}});
+const QrContext = createContext<QRContextType>({token:null,validated:false,ttl:-2,
+                                                error:null,validate:async () => {return false},
+                                                createSessionToken:async()=>{}});
 export const useQR = () => {
   const token = useContext(QrContext);
   if (token === null) {
@@ -16,6 +18,7 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
 
   const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
   const [token, setToken]         = useState<string | null>(null);
+  const [ttl, setTtl] = useState<number>(0);
   const [params]=useSearchParams()
   const {pathname}=useLocation()
   const urlToken=params.get("token")
@@ -34,9 +37,10 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
           currentController = new AbortController();
           const signal = currentController.signal;
           const result = await fetch(`${API_BASE}/session`,{method: "POST",signal})
-          const parsedResult = await result.json()
+          const{ sessionId, ttl }= await result.json()
         
-          if(parsedResult.sessionId) setToken(parsedResult.sessionId) 
+          setToken(sessionId);
+          setTtl(ttl);
 
         }catch(error){
           setError("Could not create session")
@@ -74,8 +78,8 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
   },[urlToken,pathname])
   
   
-  const ctx = useMemo(() => ({ token, validated, error, validate }),
-                    [token, validated, error, validate]);
+  const ctx = useMemo(() => ({ token, validated, error, validate,ttl,createSessionToken }),
+                    [token, validated, error, validate,ttl]);
   
   return (
     <QrContext.Provider value={ctx}>

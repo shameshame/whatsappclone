@@ -18,7 +18,7 @@ sessionRouter.get("/:id/status",async(req,res)=>{
 // POST /api/session  → create & return sessionId
 sessionRouter.post("/", async (req, res) => {
   const sessionId = await createSession();
-  res.json({ sessionId, ttlSeconds: Number(process.env.TTL_SECONDS ?? 120) });
+  res.json({ sessionId, ttl: Number(process.env.TTL_SECONDS ?? 120) });
 });
 
 // POST /api/session/validate  → mobile hit
