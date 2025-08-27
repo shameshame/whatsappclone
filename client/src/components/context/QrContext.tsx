@@ -1,5 +1,5 @@
 // src/QrContext.tsx
-import React, { createContext, useContext, useState,useEffect, useCallback, useMemo } from "react";
+import React, { createContext, useContext, useState,useEffect, useCallback, useMemo, useRef } from "react";
 import {QRContextType} from "../../types/qrcontext"
 import { useSearchParams,useLocation } from "react-router";
 
@@ -17,18 +17,24 @@ export const useQR = () => {
 export function QrProvider({children}: {children: React.ReactNode;}) {
 
   const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
-  const [token, setToken]         = useState<string | null>(null);
+  const [token, setToken]= useState<string | null>(null);
   const [ttl, setTtl] = useState<number>(0);
   const [params]=useSearchParams()
   const {pathname}=useLocation()
   const urlToken=params.get("token")
   const [validated, setValidated] = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  const alreadyCreated = useRef(false);
+
 
   let currentController: AbortController | null = null;
 
  async function  createSessionToken(){
-     
+     console.log("session already created",alreadyCreated)
+
+      // if (alreadyCreated.current) return;        // guard Strict Mode double-mount
+      //  alreadyCreated.current = true;
+  
   
      if(!urlToken){
       if (pathname.startsWith("/qr")) {
@@ -38,7 +44,6 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
           const signal = currentController.signal;
           const result = await fetch(`${API_BASE}/session`,{method: "POST",signal})
           const{ sessionId, ttl }= await result.json()
-        
           setToken(sessionId);
           setTtl(ttl);
 
@@ -73,6 +78,8 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
 
   
   useEffect(()=>{
+      
+      
       createSessionToken()
       return () => currentController?.abort()
   },[urlToken,pathname])

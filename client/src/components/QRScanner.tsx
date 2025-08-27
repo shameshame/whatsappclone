@@ -26,45 +26,7 @@ const QrScanner = () => {
 
   
 
-//  async function checkQrScanability(qrElementId: string): Promise<number> {
-//   // 1. Find the QR element and its rendered width in CSS‑px
-//   const qrEl = document.getElementById(qrElementId);
-//   if (!qrEl){ 
-    
-//     setLogs(l => [...l, `Element "#${qrElementId}" not found.`]);
-//     throw new Error(`Element "#${qrElementId}" not found.`)
-    
-  
-//   };
-//   const { width: qrDomWidth } = qrEl.getBoundingClientRect();
 
-//   // 2. Grab one frame from the camera to read its true resolution
-//   const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-//   const track  = stream.getVideoTracks()[0];
-//   const settings = track.getSettings();
-//   // Stop the camera immediately once we have settings
-//   track.stop();
-
-//   if (!settings.width || !settings.height) {
-    
-//     setLogs(l => [...l, `Could not determine camera capture resolution.`]);
-//     throw new Error("Could not determine camera capture resolution.");
-//   }
-
-//   // 3. Figure out how many camera pixels correspond to one CSS‑px on screen
-//   //    (we assume the video is rendered full‑width to the same CSS width as qrEl)
-//   const cameraResWidth = settings.width;
-//   // NOTE: you might want to measure the actual <video> element size instead,
-//   // but for a quick check we assume full‑width
-//   const videoCssWidth = qrDomWidth;  
-
-//   const pxRatio = cameraResWidth / videoCssWidth;
-
-//   // 4. A standard “Version 1” QR code is 21×21 modules
-//   const moduleSizePx = (qrDomWidth / 21) * pxRatio;
-
-//   return moduleSizePx;
-// }
 
 const onScanSuccess = async (decoded: string) => {
       // debounce identical frames for 1.5s
@@ -77,13 +39,10 @@ const onScanSuccess = async (decoded: string) => {
       inFlight.current = true;
 
       // extract token if you encoded a URL
-      let token = decoded;
-     
-      const url = new URL(decoded);
-      token = url.searchParams.get("token") || decoded;
+      const sessionId = extractSessionId(decoded);
       
 
-      const ok = await validate(token);
+      const ok = await validate(sessionId);
       inFlight.current = false;
 
       if (ok) {
@@ -91,6 +50,25 @@ const onScanSuccess = async (decoded: string) => {
         teardown()
       }
     };
+
+const extractSessionId = (decoded: string)=>{
+   const text = decoded.trim();
+
+
+  try {
+    const url = new URL(text, window.location.origin);
+    // accept either ?sessionId=... or ?token=...
+    return url.searchParams.get("sessionId")
+        ?? url.searchParams.get("token")
+        ?? text;
+  } catch {
+    // Not a URL — treat the whole QR as the session id
+    return text;
+  }
+}
+
+
+
 
 const teardown = async () => {
     let closed = false;
@@ -158,7 +136,7 @@ const teardown = async () => {
   return <div className="flex flex-col items-center justify-center  bg-gray-100">
       <div  id="qr-reader" className="w-full max-w-xs" />
            <div className="mt-4 p-2 bg-gray-100 h-32 overflow-auto">
-            <p>ExpectedData: {token}</p>
+           {token && <p>ExpectedData: {token}</p>}
         <strong>Logs:</strong>
         {logs.map((msg, i) => <div key={i}>{msg}</div>)}
         

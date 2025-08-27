@@ -109,6 +109,8 @@ useEffect(() => {
 
     // if the socket reconnects (Wi-Fi hiccup), re-emit once
     const onReconnect = () => {
+      console.log("I 'm in Reconnect")
+      
       alreadyJoined.current = false;
       tryJoin();
     };
@@ -153,7 +155,7 @@ const origin = typeof window !== "undefined" ? window.location.origin : "";
 
 return(<div className="relative inline-block rounded-xl shadow-sm" style={{ width: 300, height: 300, margin:"auto auto", background: "#fff" }}>
          {/* CURRENT QR — fades out when we flip `current` */}
-      {!expired && <QRCodeSVG
+      {!expired &&<> <QRCodeSVG
         key={`cur-${currentToken}`}
         value={scanUrl(currentToken as string)}
         size={300}
@@ -163,13 +165,17 @@ return(<div className="relative inline-block rounded-xl shadow-sm" style={{ widt
           transition-all duration-300 ease-out
           opacity-100 scale-100
           data-[fading=true]:opacity-0 data-[fading=true]:scale-95 data-[fading=true]:blur-[1px]
+          data-[fading=true]:pointer-events-none
         "
         // mark as fading while a newer code is staged
         data-fading={incomingToken ? "true" : "false"}
-      />}    
+      />
+      <small className="block mt-2 text-xs text-gray-500">Initial sessionId: {token}</small>
+      </>
+      }    
       
       {/* INCOMING QR — staged briefly to fade in */}
-      {incomingToken && (
+      {incomingToken && (<>
         <QRCodeSVG
           key={`next-${incomingToken}`}
           value={scanUrl(incomingToken as string)}
@@ -183,6 +189,8 @@ return(<div className="relative inline-block rounded-xl shadow-sm" style={{ widt
           "
           data-show="true"
         />
+        <small className="block mt-2 text-xs text-gray-500">sessionId after refresh: {token}</small>
+        </>
       )}
 
       {expired && !isRefreshing &&
