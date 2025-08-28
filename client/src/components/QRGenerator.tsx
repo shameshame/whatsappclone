@@ -21,38 +21,45 @@ export default function QRGenerator(){
   // Local token states
   const [currentToken, setCurrentToken]   = useState(token);
   const [incomingToken, setIncomingToken] = useState<string | null>(null);
+  const [fading,setFading]=useState(false)
   
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const frame = useRef<number | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
+  const currentTokenRef = useRef<string | null>(null);  // ← always latest
+  const joinedWithRef = useRef<string | null>(null);    // ← what we emitted
   const alreadyJoined = useRef(false);
   const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 
 
 const regenerate = async()=>{
   alreadyJoined.current=false;
-  await createSessionToken()
+  let nextToken =await createSessionToken()
   setExpired(false);
+
+  return nextToken
 }
 
 const onRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
+    setFading(true); // show full overlay
 
     // 1) request a fresh token
-    await regenerate();
-    setIncomingToken(token);
+     let nextToken= await regenerate();
+    setIncomingToken(nextToken);
 
     // 2) one animation frame later, start the cross-fade
     frame.current = requestAnimationFrame(() => {
       // fade/scale swap driven by Tailwind classes below
-      setCurrentToken(token);
+      setCurrentToken(nextToken);
 
       // 3) after the transition, clean up overlay state
       setTimeout(() => {
         setIncomingToken(null);
         setIsRefreshing(false);
+        setFading(false);     // hide overlay
       }, 320); // just over duration-300
     });
   };
@@ -65,8 +72,8 @@ useEffect(() => {
     const socket = io({ path: "/socket.io" }); // goes via Vite proxy
     socketRef.current = socket;
     const onValidated = ({ sessionId }: { sessionId: string }) => {
-      console.log("[client] session-validated", { sessionId, tokenCurrent: token });
-      if (sessionId === token) navigate("/chat", { replace: true });
+      console.log("[client] session-validated", { sessionId,currentTokenRef: currentTokenRef.current,joinedWith: joinedWithRef.current, });
+      if (sessionId === joinedWithRef.current) navigate("/chat", { replace: true });
     };
 
     const onExpired=({ sessionId }: { sessionId: string }) => {
@@ -98,6 +105,8 @@ useEffect(() => {
     const tryJoin = () => {
       if (alreadyJoined.current) return;
       alreadyJoined.current = true;
+
+      joinedWithRef.current = token
       console.log("[client] emitting join-session with token", token);
       socket.emit("join-session", { sessionId: token });
     };
@@ -130,6 +139,7 @@ useEffect(() => {
       try {
         const response = await fetch(`${API_BASE}/session/${token}/status`);
         const { status } = await response.json();
+        console.log(status)
         if (status === "validated" || status === "used") {
           console.log("[client] status fallback -> navigate");
           navigate("/chat", { replace: true });
@@ -145,6 +155,11 @@ useEffect(() => {
     const elapse = setTimeout(() => setExpired(true), ttl * 1000);
     return () => clearTimeout(elapse);
   }, [ttl, token]);
+
+
+  useEffect(() => {
+    currentTokenRef.current = token ?? null;
+  }, [token]);
 
   
 
@@ -166,6 +181,7 @@ return(<div className="relative inline-block rounded-xl shadow-sm" style={{ widt
           opacity-100 scale-100
           data-[fading=true]:opacity-0 data-[fading=true]:scale-95 data-[fading=true]:blur-[1px]
           data-[fading=true]:pointer-events-none
+          data-[fading=true]:transition-none
         "
         // mark as fading while a newer code is staged
         data-fading={incomingToken ? "true" : "false"}

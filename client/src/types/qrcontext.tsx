@@ -4,6 +4,6 @@ export type QRContextType = {
   validated:boolean,
   error:string | null;
   validate: (scanned: string) => Promise<boolean>;
-  createSessionToken : ()=>Promise<void>
+  createSessionToken : ()=>Promise<string>
   
 };

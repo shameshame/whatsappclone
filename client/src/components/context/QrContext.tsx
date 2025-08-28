@@ -5,7 +5,7 @@ import { useSearchParams,useLocation } from "react-router";
 
 const QrContext = createContext<QRContextType>({token:null,validated:false,ttl:-2,
                                                 error:null,validate:async () => {return false},
-                                                createSessionToken:async()=>{}});
+                                                createSessionToken:async()=>{return ""}});
 export const useQR = () => {
   const token = useContext(QrContext);
   if (token === null) {
@@ -28,6 +28,7 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
 
 
   let currentController: AbortController | null = null;
+  let sidToReturnImmediately=""
 
  async function  createSessionToken(){
      console.log("session already created",alreadyCreated)
@@ -44,6 +45,7 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
           const signal = currentController.signal;
           const result = await fetch(`${API_BASE}/session`,{method: "POST",signal})
           const{ sessionId, ttl }= await result.json()
+          sidToReturnImmediately=sessionId
           setToken(sessionId);
           setTtl(ttl);
 
@@ -56,6 +58,8 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
     else{
       setToken(urlToken)
     }
+
+    return urlToken|| sidToReturnImmediately
      
  }
 
