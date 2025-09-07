@@ -71,6 +71,7 @@ const onRefresh = async () => {
 useEffect(() => {
     const socket = io({ path: "/socket.io" }); // goes via Vite proxy
     socketRef.current = socket;
+    
     const onValidated = ({ sessionId }: { sessionId: string }) => {
       console.log("[client] session-validated", { sessionId,currentTokenRef: currentTokenRef.current,joinedWith: joinedWithRef.current, });
       if (sessionId === joinedWithRef.current) navigate("/chat", { replace: true });
@@ -93,6 +94,7 @@ useEffect(() => {
 
     return () => {
       socket.off("session-validated", onValidated);
+      socket.off("session-expired",onExpired)
       socket.disconnect();
     };
   }, [navigate]);
@@ -112,14 +114,12 @@ useEffect(() => {
     };
 
     //Race-proof way to emit join-session exactly once when the socket is connected
-    //If it's already connected we'll emit-join session, if it hasn't yet we'll fire one-time listener, once it has
+    //If it's already connected we'll emit-join session, if it hasn't yet we'll fire one-time listener, once connection is established
     (socket.connected) ? tryJoin(): socket.once("connect", tryJoin) ;
     
 
     // if the socket reconnects (Wi-Fi hiccup), re-emit once
     const onReconnect = () => {
-      console.log("I 'm in Reconnect")
-      
       alreadyJoined.current = false;
       tryJoin();
     };

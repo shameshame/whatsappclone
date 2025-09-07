@@ -3,7 +3,7 @@ export type QRContextType = {
   ttl:number,
   validated:boolean,
   error:string | null;
-  validate: (scanned: string) => Promise<boolean>;
+  validate: (payload:{ sessionId:string, challenge:string, deviceInfo:any}) => Promise<Response>;
   createSessionToken : ()=>Promise<string>
   
 };

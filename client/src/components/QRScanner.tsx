@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQR } from "./context/QrContext";
 import { Html5Qrcode} from "html5-qrcode";
+import { loginWithPasskey } from "../utilities/passkeys";
+import getDeviceInfoSync from "../utilities/deviceInfo"
 
 
 const QrScanner = () => {
@@ -17,14 +19,46 @@ const QrScanner = () => {
 
 
   //Guards from re-rendering
- const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const started = useRef(false);
   const gotResult = useRef(false);
   const inFlight = useRef(false);
   const lastText = useRef<string>("");
   const lastAt = useRef(0);
 
-  
+  const deviceInf0 = getDeviceInfoSync()
+
+
+
+
+ const extractSessionId = (decoded: string)=>{
+   const text = decoded.trim();
+
+
+  try {
+    const url = new URL(text, window.location.origin);
+    // accept either ?sessionId=... or ?token=...
+    return {
+      sessionId: url.searchParams.get("sessionId") ?? url.searchParams.get("token") ?? "",
+      challenge: url.searchParams.get("challenge") ?? "",
+    };
+  } catch {
+    // Not a URL — treat the whole QR as the session id
+    const [sessionId, challenge] = text.split(":");
+    return { sessionId: sessionId || "", challenge: challenge || "" };
+  }
+}
+
+const teardown = async () => {
+    let closed = false;
+    if (closed) 
+      return;
+    
+    closed = true;
+    try { await scannerRef.current?.stop(); } catch {}
+    try { scannerRef.current?.clear(); } catch {}
+};
+
 
 
 
@@ -39,46 +73,37 @@ const onScanSuccess = async (decoded: string) => {
       inFlight.current = true;
 
       // extract token if you encoded a URL
-      const sessionId = extractSessionId(decoded);
-      
+      try {
+          const { sessionId, challenge } = extractSessionId(decoded);
+          if (!sessionId || !challenge) throw new Error("Invalid QR payload");
 
-      const ok = await validate(sessionId);
-      inFlight.current = false;
+          const deviceInfo=getDeviceInfoSync()
 
-      if (ok) {
-        gotResult.current = true;
-        teardown()
-      }
-    };
+          // 1st attempt: validate using existing cookies
+          let response = await validate({ sessionId, challenge, deviceInfo});
 
-const extractSessionId = (decoded: string)=>{
-   const text = decoded.trim();
-
-
-  try {
-    const url = new URL(text, window.location.origin);
-    // accept either ?sessionId=... or ?token=...
-    return url.searchParams.get("sessionId")
-        ?? url.searchParams.get("token")
-        ?? text;
-  } catch {
-    // Not a URL — treat the whole QR as the session id
-    return text;
-  }
-}
+          // If phone isn’t authenticated yet, do passkey login and retry once
+          if (response.status === 401) {
+            await loginWithPasskey(); // sets cookies on success
+            response = await validate({ sessionId, challenge, deviceInfo });
+          }
+        
+          if (response.ok) {
+            gotResult.current = true;
+            teardown()
+          }
+        }catch (err: any) {
+            setLogs(l => [...l, `❌ ${err?.message || err}`]);
+        } finally {
+          inFlight.current = false;
+        }
 
 
 
 
-const teardown = async () => {
-    let closed = false;
-    if (closed) 
-      return;
-    
-    closed = true;
-    try { await scannerRef.current?.stop(); } catch {}
-    try { scannerRef.current?.clear(); } catch {}
-};
+
+
+
 
 
  async function scanHandler(){
@@ -144,6 +169,6 @@ const teardown = async () => {
         </div>;
 };
 
-
+}
 
 export default QrScanner;

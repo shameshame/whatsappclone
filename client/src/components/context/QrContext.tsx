@@ -3,9 +3,17 @@ import React, { createContext, useContext, useState,useEffect, useCallback, useM
 import {QRContextType} from "../../types/qrcontext"
 import { useSearchParams,useLocation } from "react-router";
 
-const QrContext = createContext<QRContextType>({token:null,validated:false,ttl:-2,
-                                                error:null,validate:async () => {return false},
-                                                createSessionToken:async()=>{return ""}});
+
+
+const QrContext = 
+createContext<QRContextType>(
+                             {
+                              token:null,validated:false,ttl:-2,
+                              error:null,
+                              validate:async (payload:{ sessionId:string, challenge:string, deviceInfo:string}) => new Response(null, { status: 204, statusText: 'No Content' }),
+                              createSessionToken:async()=>{return ""}
+                             }
+                            );
 export const useQR = () => {
   const token = useContext(QrContext);
   if (token === null) {
@@ -63,27 +71,19 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
      
  }
 
- const validate= useCallback(async (scannedToken: string): Promise<boolean> =>{
-    try {
+ const validate= useCallback(async (payload: { sessionId: string; challenge: string; deviceInfo?: any }): Promise<Response> =>{
+    
       const result = await fetch(`${API_BASE}/session/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: scannedToken }),
+        body: JSON.stringify({ payload}),
       });
       result.ok ? setValidated(true) : setError("Validation failed")
-      return result.ok
-      
-    } catch {
-      setError("Network error");
-      return false
-    }
- 
+      return result
  }, [API_BASE])
 
   
   useEffect(()=>{
-      
-      
       createSessionToken()
       return () => currentController?.abort()
   },[urlToken,pathname])

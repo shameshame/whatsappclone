@@ -1,5 +1,5 @@
 // server/src/services/session.service.ts
-import { randomUUID } from "crypto";
+import { randomUUID,randomBytes  } from "crypto";
 import type { Server as SocketIOServer } from "socket.io";
 import { redis } from "../redis";
 
@@ -7,6 +7,16 @@ const TTL = Number(process.env.TTL_SECONDS ?? 120);
 
 const key = (id: string) => `session:${id}`;
 export type SessionStatus = "pending" | "validated" | "used";
+const authCodeKey = (code: string) => `authcode:${code}`;
+
+
+export type PairRecord = {
+  validated: "0" | "1";      // kept for back-compat
+  status: "pending" | "approved" | "used";
+  socketId?: string;
+  challenge: string;
+  createdAt: string;         // Date.now().toString()
+};
 
 
 export async function getStatus(sessionId: string): Promise<{ status: SessionStatus | "unknown" | "expired"; ttl: number }> {
@@ -24,12 +34,21 @@ export async function getStatus(sessionId: string): Promise<{ status: SessionSta
 
 
 
-export async function createSession(): Promise<string> {
-  const id = randomUUID();
+export async function createSession(): Promise<{ sessionId: string; challenge: string; ttl: number }> {
+  const sessionId = randomUUID();
+  const challenge = randomBytes(32).toString("base64url");
+
+ const record: PairRecord = {
+    validated: "0",
+    status: "pending",
+    challenge,
+    createdAt: Date.now().toString(),
+  };
+
   // Create the hash and set TTL atomically-ish
-  await redis.hSet(key(id), { validated: "0" });
-  await redis.expire(key(id), TTL);
-  return id;
+  await redis.hSet(key(sessionId), record);
+  await redis.expire(key(sessionId), TTL);
+  return { sessionId, challenge, ttl: TTL }
 }
 
 
@@ -47,7 +66,7 @@ export async function registerSocket(sessionId: string, socketId: string) {
   return true;
 }
 
-export async function markValidated(sessionId: string) {
+export async function approveIfValid(sessionId: string,challenge: string) {
   const k = key(sessionId);
   const exists = await redis.exists(k);
   if (!exists) return "unknown" as const;
@@ -55,7 +74,13 @@ export async function markValidated(sessionId: string) {
   const ttl = await redis.ttl(k);
   if (ttl <= 0) return "expired" as const;
 
-  await redis.hSet(k, { validated: "1" });
+  const [status, storedChallenge] = await redis.hmGet(k, ["status", "challenge"]);
+
+  if (status !== "pending") return "not-pending" as const;
+  if (storedChallenge !== challenge) return "bad-challenge" as const;
+
+
+  await redis.hSet(k, { validated: "1",status: "approved" });
   return "ok" as const;
 }
 
@@ -66,6 +91,16 @@ export async function getSocketId(sessionId: string) {
 export async function isValidated(sessionId: string) {
   return (await redis.hGet(key(sessionId), "validated")) === "1";
 }
+
+// ----- one-time auth code storage -----
+export async function createAuthCode(payload: { userId: string; deviceInfo?: any }, ttlSec = 60) {
+  const code = randomBytes(32).toString("base64url");
+  await redis.set(authCodeKey(code), JSON.stringify(payload), { EX: ttlSec, NX: true });
+  return code;
+}
+
+
+
 
 // One-time consumption: notify desktop and delete key
 export async function consumeAndExpire(io: SocketIOServer, sessionId: string, reason: "used" | "ttl" = "used") {
