@@ -2,12 +2,13 @@
 import { randomUUID,randomBytes  } from "crypto";
 import type { Server as SocketIOServer } from "socket.io";
 import { redis } from "../redis";
+import { authCodeKey, createAuthCode } from "../utils/auth";
 
 const TTL = Number(process.env.TTL_SECONDS ?? 120);
 
 const key = (id: string) => `session:${id}`;
 export type SessionStatus = "pending" | "validated" | "used";
-const authCodeKey = (code: string) => `authcode:${code}`;
+
 
 
 export type PairRecord = {
@@ -34,7 +35,7 @@ export async function getStatus(sessionId: string): Promise<{ status: SessionSta
 
 
 
-export async function createSession(): Promise<{ sessionId: string; challenge: string; ttl: number }> {
+export async function createPairingSession(): Promise<{ sessionId: string; challenge: string; ttl: number }> {
   const sessionId = randomUUID();
   const challenge = randomBytes(32).toString("base64url");
 
@@ -50,11 +51,6 @@ export async function createSession(): Promise<{ sessionId: string; challenge: s
   await redis.expire(key(sessionId), TTL);
   return { sessionId, challenge, ttl: TTL }
 }
-
-
-
-
-
 
 export async function registerSocket(sessionId: string, socketId: string) {
   const k = key(sessionId);
@@ -93,11 +89,9 @@ export async function isValidated(sessionId: string) {
 }
 
 // ----- one-time auth code storage -----
-export async function createAuthCode(payload: { userId: string; deviceInfo?: any }, ttlSec = 60) {
-  const code = randomBytes(32).toString("base64url");
-  await redis.set(authCodeKey(code), JSON.stringify(payload), { EX: ttlSec, NX: true });
-  return code;
-}
+
+
+
 
 
 

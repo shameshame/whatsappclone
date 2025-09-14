@@ -2,9 +2,12 @@
 import { Router } from "express";
 import type { Server as SocketIOServer } from "socket.io";
 import {
-  createSession, approveIfValid, getSocketId, consumeAndExpire,getStatus,createAuthCode
+  createPairingSession, approveIfValid, getSocketId, consumeAndExpire,getStatus
 } from "../services/session.service";
 import crypto from 'crypto';
+import { createAuthCode,takeAuthCode } from "../utils/auth";
+import { issueAppSession } from "../services/auth.session.service";
+import { setSessionCookie } from "../utils/cookies";
 
 export const sessionRouter = Router();
 
@@ -18,7 +21,7 @@ sessionRouter.get("/:id/status",async(req,res)=>{
 
 // POST /api/session  → create & return sessionId
 sessionRouter.post("/", async (req, res) => {
- const { sessionId, challenge, ttl } = await createSession();
+ const { sessionId, challenge, ttl } = await createPairingSession();
   res.json({ sessionId, challenge, ttl });
 });
 
@@ -52,6 +55,26 @@ sessionRouter.post("/validate", async (req, res) => {
 
   return res.json({ ok: true });
 });
+
+sessionRouter.post("/exchange",async (req, res) => {
+  const { sessionId, authCode } = req.body ?? {};
+  if (!authCode) return res.status(400).json({ ok: false, message: "missing-authCode" });
+
+  // Single-use, short-TTL code from the phone approval step
+  const data = await takeAuthCode(authCode); // { userId, sessionId?: string, deviceInfo?: any } | null
+  if (!data) return res.status(410).json({ ok: false, message: "authCode-expired-or-used" });
+
+  // Optional: enforce binding to the *desktop* pairing session
+  // if (sessionId && data?.sessionId && data?.sessionId !== sessionId) {
+  //   return res.status(409).json({ ok: false, message: "wrong-session" });
+  // }
+
+  // Mint an opaque Redis-backed session and set it as HttpOnly cookie
+  const sid = await issueAppSession(data.userId, data.deviceInfo);
+  setSessionCookie(res, sid); // HttpOnly; Secure; SameSite=Strict; Path=/
+
+  return res.json({ ok: true });
+})
 
 
 

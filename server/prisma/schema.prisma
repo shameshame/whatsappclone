@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String       @id @default(uuid())
+  displayName   String
+  handle        String?      @unique
+  phoneE164     String?
+  phoneVerified Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  credentials   Credential[]
+  devices       Device[]
+}
+
+model Credential {
+  credentialIdB64 String  @id
+  userId          String
+  publicKeyB64    String
+  counter         BigInt  @default(0)
+  transports      String?
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Device {
+  id        String    @id @default(uuid())
+  userId    String
+  name      String?
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
