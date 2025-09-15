@@ -1,0 +1,1 @@
+export type SessionStatus = "pending" | "validated" | "used";

@@ -20,7 +20,7 @@ sessionRouter.get("/:id/status",async(req,res)=>{
 
 
 // POST /api/session  → create & return sessionId
-sessionRouter.post("/", async (req, res) => {
+sessionRouter.post("/", async (_req, res) => {
  const { sessionId, challenge, ttl } = await createPairingSession();
   res.json({ sessionId, challenge, ttl });
 });
@@ -58,16 +58,13 @@ sessionRouter.post("/validate", async (req, res) => {
 
 sessionRouter.post("/exchange",async (req, res) => {
   const { sessionId, authCode } = req.body ?? {};
-  if (!authCode) return res.status(400).json({ ok: false, message: "missing-authCode" });
+  if (!sessionId || !authCode) return res.status(400).json({ ok: false, message: "missing field(s)" });
 
   // Single-use, short-TTL code from the phone approval step
-  const data = await takeAuthCode(authCode); // { userId, sessionId?: string, deviceInfo?: any } | null
+  const data = await takeAuthCode(sessionId,authCode); // { userId, sessionId?: string, deviceInfo?: any } | null
   if (!data) return res.status(410).json({ ok: false, message: "authCode-expired-or-used" });
 
-  // Optional: enforce binding to the *desktop* pairing session
-  // if (sessionId && data?.sessionId && data?.sessionId !== sessionId) {
-  //   return res.status(409).json({ ok: false, message: "wrong-session" });
-  // }
+  
 
   // Mint an opaque Redis-backed session and set it as HttpOnly cookie
   const sid = await issueAppSession(data.userId, data.deviceInfo);

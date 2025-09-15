@@ -1,0 +1,1 @@
+export type DeviceInfo = { name?: string; userAgent?: string; timeZone?: string };

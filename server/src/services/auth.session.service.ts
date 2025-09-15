@@ -1,16 +1,12 @@
 // auth/session.ts
 import { randomBytes } from "crypto";
 import { redis } from "../redis";
+import { SessionData } from "../types/sessionData";
 
 const SESSION_TTL_SEC = 30 * 24 * 60 * 60; // 30d
 const sessionKey = (sid: string) => `sess:${sid}`;
 
-export type SessionData = {
-  userId: string;
-  device?: { name?: string; ua?: string; tz?: string };
-  createdAt: number;
-  lastSeen: number;
-};
+
 
 export async function issueAppSession(userId: string, device?: SessionData["device"]) {
   const data: SessionData = { userId, device, createdAt: Date.now(), lastSeen: Date.now() };

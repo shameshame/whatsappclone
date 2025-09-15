@@ -2,22 +2,11 @@
 import { randomUUID,randomBytes  } from "crypto";
 import type { Server as SocketIOServer } from "socket.io";
 import { redis } from "../redis";
-import { authCodeKey, createAuthCode } from "../utils/auth";
+import { SessionStatus } from "../types/sessionStatus";
+import { PairRecord } from "../types/pairRecord";
 
 const TTL = Number(process.env.TTL_SECONDS ?? 120);
-
 const key = (id: string) => `session:${id}`;
-export type SessionStatus = "pending" | "validated" | "used";
-
-
-
-export type PairRecord = {
-  validated: "0" | "1";      // kept for back-compat
-  status: "pending" | "approved" | "used";
-  socketId?: string;
-  challenge: string;
-  createdAt: string;         // Date.now().toString()
-};
 
 
 export async function getStatus(sessionId: string): Promise<{ status: SessionStatus | "unknown" | "expired"; ttl: number }> {
@@ -31,9 +20,6 @@ export async function getStatus(sessionId: string): Promise<{ status: SessionSta
   const status = (await redis.hGet(k, "status")) as SessionStatus | null;
   return { status: (status ?? "unknown") as any, ttl };
 }
-
-
-
 
 export async function createPairingSession(): Promise<{ sessionId: string; challenge: string; ttl: number }> {
   const sessionId = randomUUID();
@@ -89,11 +75,6 @@ export async function isValidated(sessionId: string) {
 }
 
 // ----- one-time auth code storage -----
-
-
-
-
-
 
 
 // One-time consumption: notify desktop and delete key
