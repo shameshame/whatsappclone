@@ -1,5 +1,6 @@
 import express from "express";
 import http from "http";
+import { randomUUID,randomBytes  } from "crypto";
 
 import { Server as SocketIOServer } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
@@ -13,11 +14,11 @@ import { v4 as uuidv4 } from "uuid";
 import cors from "cors";
 
 
-
+const cookieParser = require("cookie-parser")
 const app = express();
 const morgan = require("morgan")
 const server = http.createServer(app);
-const io = new SocketIOServer(server, {path: "/socket.io", cors: { origin: "*" } });
+const io = new SocketIOServer(server, {path: "/socket.io", cors: { origin: "http://localhost:5173",credentials:true } });
 
 
 async function main() {
@@ -41,12 +42,42 @@ main().catch((err) => {
 app.use(cors());
 app.use(morgan("dev"));
 app.use(express.json());
+app.use(cookieParser());
 
 // make io available to routes/services
 app.set("io", io);
 
 app.use("/api/session", sessionRouter);
 app.use("/api/auth",authRouter)
+
+
+// issue a CSRF cookie if it's missing
+app.use((req, res, next) => {
+  if (!req.cookies?.csrf) {
+    const csrfToken = randomBytes(32).toString("base64url");
+    res.cookie("csrf", csrfToken, {
+      sameSite: "lax",      // "strict" in prod if you can
+      secure: process.env.NODE_ENV === "production",        // true behind HTTPS in prod
+      path: "/",
+    });
+  }
+  next();
+});
+
+
+app.use((req, res, next) => {
+  const SAFE = new Set(["GET","HEAD","OPTIONS"]);
+  if (SAFE.has(req.method)) return next();
+  
+  const csrfHeader = req.get("X-CSRF-Token");
+  const csrfCookie = req.cookies?.csrf;
+  
+  if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) return res.sendStatus(403);
+  next();
+});
+
+
+
 
 // WS handlers
 io.on("connection", (socket) => {

@@ -1,9 +1,12 @@
+import { DeviceInfo } from "./deviceInfo";
+
+
 export type QRContextType = {
   token:string | null,
   ttl:number,
   validated:boolean,
   error:string | null;
-  validate: (payload:{ sessionId:string, challenge:string, deviceInfo:any}) => Promise<Response>;
+  validate: (payload:{ sessionId:string, challenge:string, deviceInfo:DeviceInfo}) => Promise<Response>;
   createSessionToken : ()=>Promise<string>
   
 };

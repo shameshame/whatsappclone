@@ -69,7 +69,7 @@ const onRefresh = async () => {
 
 // 1) Create socket once
 useEffect(() => {
-    const socket = io({ path: "/socket.io" }); // goes via Vite proxy
+    const socket = io({ path: "/socket.io",withCredentials:true }); // goes via Vite proxy
     socketRef.current = socket;
     
     const onValidated = ({ sessionId }: { sessionId: string }) => {

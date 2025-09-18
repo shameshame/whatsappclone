@@ -1,10 +1,9 @@
 import { UADataLike } from "../types/uadata";
-
-type DeviceInfo = { name: string; ua: string; tz: string; mobile?: boolean };
+import { DeviceInfo } from "../types/deviceInfo";
 
 export default function getDeviceInfoSync(): DeviceInfo {
-  const ua = navigator.userAgent;
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const userAgent = navigator.userAgent;
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const uaData = (navigator as Navigator & { userAgentData?: UADataLike }).userAgentData;
   const brand = uaData?.brands?.find(b => b.brand && b.brand !== "Not?A_Brand")?.brand
@@ -13,12 +12,12 @@ export default function getDeviceInfoSync(): DeviceInfo {
 
   const platform =
     uaData?.platform
-    ?? (/Android/i.test(ua) ? "Android"
-      : /iPhone|iPad|iPod/i.test(ua) ? "iOS"
-      : /Windows/i.test(ua) ? "Windows"
-      : /Mac OS X|Macintosh/i.test(ua) ? "macOS"
-      : /Linux/i.test(ua) ? "Linux"
+    ?? (/Android/i.test(userAgent) ? "Android"
+      : /iPhone|iPad|iPod/i.test(userAgent) ? "iOS"
+      : /Windows/i.test(userAgent) ? "Windows"
+      : /Mac OS X|Macintosh/i.test(userAgent) ? "macOS"
+      : /Linux/i.test(userAgent) ? "Linux"
       : "Web");
 
-  return { name: [platform, brand].filter(Boolean).join(" • "), ua, tz, mobile: uaData?.mobile };
+  return { name: [platform, brand].filter(Boolean).join(" • "), userAgent, timeZone, mobile: uaData?.mobile };
 }

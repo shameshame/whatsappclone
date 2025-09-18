@@ -9,7 +9,67 @@ const bufToB64url = (buf: ArrayBuffer) => {
   return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 };
 
-function decodeGetOptions(opts: any): PublicKeyCredentialRequestOptions {
+
+
+function b64urlToArrayBuffer(b64url: string): ArrayBuffer {
+    // Convert base64url -> base64
+    const pad = (str: string) => str + "=".repeat((4 - (str.length % 4)) % 4);
+    const b64 = pad(b64url.replace(/-/g, "+").replace(/_/g, "/"));
+    const raw = typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("binary");
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    return bytes.buffer;
+}
+
+
+
+
+function arrayBufferToB64url(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  const b64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64");
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+// tiny fetch helper (keeps credentials + optional CSRF header)
+  export async function postJSON<T = any>(url: string, body: unknown,csrfToken?:string): Promise<T> {
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || res.statusText);
+    }
+    return (await res.json()) as T;
+  }
+
+
+export function decodeCreateOptions(options: any): PublicKeyCredentialCreationOptions {
+     const out: any = { ...options };
+     out.challenge = b64urlToArrayBuffer(options.challenge);
+     // user.id may come as a string from server libs; must be BufferSource
+     out.user = {
+     ...options.user,
+     id: typeof options.user.id === "string" ? b64urlToArrayBuffer(options.user.id) : options.user.id,
+     };
+     if (Array.isArray(options.excludeCredentials)) {
+     out.excludeCredentials = options.excludeCredentials.map((c: any) => ({
+     ...c,
+     id: typeof c.id === "string" ? new Uint8Array(b64urlToArrayBuffer(c.id)) : c.id,
+     }));
+     }
+     if (options.hints) out.hints = options.hints;
+     return out as PublicKeyCredentialCreationOptions;
+}
+
+export function decodeGetOptions(opts: any): PublicKeyCredentialRequestOptions {
   const out: any = { ...opts };
   out.challenge = b64urlToBuf(opts.challenge);
   if (Array.isArray(opts.allowCredentials)) {
@@ -21,31 +81,25 @@ function decodeGetOptions(opts: any): PublicKeyCredentialRequestOptions {
   return out;
 }
 
-function publicKeyCredentialToJSON(cred: any): any {
+
+export function publicKeyCredentialToJSON(cred: any): any {
   if (!cred) return null;
   if (cred instanceof ArrayBuffer) return bufToB64url(cred);
   if (cred.rawId instanceof ArrayBuffer) cred.rawId = bufToB64url(cred.rawId);
+  if (cred instanceof Uint8Array) return arrayBufferToB64url(cred.buffer);
   if (cred.response) {
-    const r = cred.response as any;
-    if (r.clientDataJSON) r.clientDataJSON = bufToB64url(r.clientDataJSON);
-    if (r.authenticatorData) r.authenticatorData = bufToB64url(r.authenticatorData);
-    if (r.signature) r.signature = bufToB64url(r.signature);
-    if (r.userHandle && r.userHandle instanceof ArrayBuffer) r.userHandle = bufToB64url(r.userHandle);
+    const response = cred.response as any;
+    if (response.clientDataJSON) response.clientDataJSON = bufToB64url(response.clientDataJSON);
+    if (response.authenticatorData) response.authenticatorData = bufToB64url(response.authenticatorData);
+    if (response.signature) response.signature = bufToB64url(response.signature);
+    if (response.userHandle && response.userHandle instanceof ArrayBuffer) response.userHandle = bufToB64url(response.userHandle);
   }
   for (const k in cred) if (typeof cred[k] === "object") cred[k] = publicKeyCredentialToJSON(cred[k]);
   return cred;
 }
 
-async function postJSON<T>(url: string, body?: any): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",                // IMPORTANT: set cookies
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${res.status}`);
-  return res.json();
-}
+
+
 
 /** Logs the user in with a discoverable passkey (no handle needed). */
 export async function loginWithPasskey(): Promise<void> {

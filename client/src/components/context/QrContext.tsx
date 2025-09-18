@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState,useEffect, useCallback, useMemo, useRef } from "react";
 import {QRContextType} from "../../types/qrcontext"
 import { useSearchParams,useLocation } from "react-router";
+import { DeviceInfo } from "client/src/types/deviceInfo";
 
 
 
@@ -10,7 +11,7 @@ createContext<QRContextType>(
                              {
                               token:null,validated:false,ttl:-2,
                               error:null,
-                              validate:async (payload:{ sessionId:string, challenge:string, deviceInfo:string}) => new Response(null, { status: 204, statusText: 'No Content' }),
+                              validate:async (payload:{ sessionId:string, challenge:string, deviceInfo:DeviceInfo}) => new Response(null, { status: 204, statusText: 'No Content' }),
                               createSessionToken:async()=>{return ""}
                              }
                             );
@@ -71,7 +72,7 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
      
  }
 
- const validate= useCallback(async (payload: { sessionId: string; challenge: string; deviceInfo?: any }): Promise<Response> =>{
+ const validate= useCallback(async (payload: { sessionId: string; challenge: string; deviceInfo?: DeviceInfo }): Promise<Response> =>{
     
       const result = await fetch(`${API_BASE}/session/validate`, {
         method: "POST",

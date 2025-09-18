@@ -9,8 +9,8 @@ import { redis } from "../redis";
 import { issueAppSession, revokeSession } from "./auth.session.service";
 import { setSessionCookie } from "../utils/cookies";
 
-const RP_ID = "your.domain.com";
-const ORIGIN = "https://your.domain.com";
+const RP_ID = "localhost";
+const ORIGIN = "http://localhost:5173";
 
 
 export const checkIfLoggedIn :RequestHandler = (req: any,res:any)=>{

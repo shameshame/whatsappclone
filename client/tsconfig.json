@@ -1,10 +1,14 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
+    "baseUrl": ".",
     "composite": true,
     "jsx": "react-jsx",
     "rootDir": "src",
-    "outDir": "../dist/client"
+    "outDir": "../dist/client",
+    "paths": {"@/*": ["src/*"] },  
   },
-  "include": ["src"]
+  "include": ["src"],
+                  // <– maps @ to client/src
+
 }

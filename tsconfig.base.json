@@ -29,7 +29,7 @@
     /* Project Layout */
     "baseUrl": ".",                      // for absolute imports
     "paths": {
-      "@shared/*": ["shared/*"]          // if you have a shared/ folder
+               // if you have a shared/ folder
     },
 
     /* Build Optimizations */

@@ -44,8 +44,8 @@ sessionRouter.post("/validate", async (req, res) => {
   const io = req.app.get("io") as SocketIOServer;
   const socketId = await getSocketId(sessionId);
  
-  // mint one-time auth code (TTL ~ 60s)
-  const authCode = await createAuthCode({ userId, deviceInfo });
+  // mint one-time auth code (TTL ~ 60s) - correct this call due to the last changes in createAuthCode
+  const authCode = await createAuthCode({ userId, sessionId,deviceInfo });
 
   if (socketId) {
     io.to(socketId).emit("session-approved", { sessionId, authCode });
