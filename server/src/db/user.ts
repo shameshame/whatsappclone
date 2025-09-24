@@ -1,17 +1,12 @@
 // server/src/db.ts
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { RegComplete, RegPending } from "../types/userAndCredentialData";
+import { randomUUID } from "crypto";
+
 
 const prisma = new PrismaClient();
 
-/**
- * Return the full credential row (or null) for a WebAuthn credential id.
- * We store credentialId/publicKey as base64url strings to avoid binary hassles.
- */
-export function getCredentialById(credentialIdB64: string) {
-  return prisma.credential.findUnique({
-    where: { credentialIdB64 },
-  });
-}
+
 
 /**
  * Return the userId that owns this credential (or null if not found).
@@ -52,4 +47,41 @@ export async function updateCounter(
     return prisma.credential.findUnique({ where: { credentialIdB64 } });
   }
   return prisma.credential.findUnique({ where: { credentialIdB64 } });
+}
+
+
+export async function createUserIfNotCreatedYet(complete:RegComplete){
+   await prisma.$transaction(async (tx:Prisma.TransactionClient) => {
+      await tx.user.upsert({
+        where: { id: complete.id },
+        create: {
+          id: complete.id, // ok to provide even though model has @default(uuid())
+          displayName: complete.displayName,
+          handle: complete.handle ?? null,       // unique; may throw if taken
+          phoneE164: complete.phone ?? null,
+          // phoneVerified stays default=false
+        },
+        update:{}
+      });
+      
+      // Save Credential
+    await tx.credential.create({
+      data: {
+        credentialIdB64: complete.credentialIdB64,
+        userId: complete.id,
+        publicKeyB64: complete.publicKeyB64,
+        counter: complete.counter,
+        transports: complete.transports
+      },
+    });
+
+    // Optional: record the device that just registered
+      // await tx.device.create({
+      //   data: {
+      //     id: randomUUID(),
+      //     userId:,
+      //     name: deviceInfo?.name ?? null,
+      //   },
+      // });
+    })
 }

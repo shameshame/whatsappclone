@@ -98,7 +98,7 @@ const onScanSuccess = async (decoded: string) => {
           inFlight.current = false;
         }
 
-
+      }
 
 
 
@@ -168,7 +168,5 @@ const onScanSuccess = async (decoded: string) => {
       </div>
         </div>;
 };
-
-}
 
 export default QrScanner;

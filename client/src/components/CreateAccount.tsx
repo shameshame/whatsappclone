@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {useEffect,useState } from "react";
+import { useNavigate } from "react-router";
 import { publicKeyCredentialToJSON,loginWithPasskey,decodeGetOptions,decodeCreateOptions,postJSON } from "../utilities/passkeys";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Button } from "./ui/button";
@@ -27,27 +28,29 @@ import { SubmitHandler, useForm, useWatch } from "react-hook-form";
 type CreateFormValues = { displayName: string; handle?: string; phone?: string };
 
 type CreateAccountProps = {
-  apiBase: string;
-  submitting: boolean;
-  setSubmitting: (b: boolean) => void;
-  setError: (msg: string | null) => void;
-  onSuccess?: () => void;
-  csrfToken?: string;
+  apiBase?: string;
+//   submitting: boolean;
+//   setSubmitting: (b: boolean) => void;
+//   setError: (msg: string | null) => void;
+//   onSuccess?: () => void;
+//   csrfToken?: string;
 };
 
 const DEFAULT_API = "api/auth/passkey";
 
-export default function CreateAccount({ onSuccess, apiBase = DEFAULT_API,  }: CreateAccountProps){
+export default function CreateAccount({apiBase = DEFAULT_API,  }: CreateAccountProps){
 
   
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supported, setSupported] = useState<boolean>(true);
+  const navigate = useNavigate()
 
   useEffect(() => {
     // Feature-detect WebAuthn platform support
     const isSupported = !!(window.PublicKeyCredential && typeof window.PublicKeyCredential === "function");
     setSupported(isSupported);
+    
   }, []);
 
   const form = useForm<CreateFormValues>({
@@ -77,7 +80,7 @@ const [displayName, handle, phone] = useWatch({
         phone: values.phone?.trim(),
       };
       const { userId, options } = await postJSON<{ userId: string; options: any }>(
-        `${apiBase}/register/options`,
+        `${apiBase}/registration/options`,
         payload
       );
 
@@ -90,10 +93,10 @@ const [displayName, handle, phone] = useWatch({
 
       // 4) Send attestation back to server for verification & session issuance
       const attResp = publicKeyCredentialToJSON(credential);
-      await postJSON(`${apiBase}/register/verify`, { userId, attResp });
+      await postJSON(`${apiBase}/login/verify`, { userId, attResp });
 
       // Server should set httpOnly cookie; continue
-      onSuccess?.();
+       navigate("/chat",{replace:true})
     } catch (err: any) {
       console.error(err);
       setError(err?.message || "Registration failed");

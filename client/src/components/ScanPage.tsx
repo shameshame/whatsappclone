@@ -8,5 +8,5 @@ export default function ScanPage() {
 
   
 
-  return <QrScanner  />;
+  return <QrScanner/>;
 }

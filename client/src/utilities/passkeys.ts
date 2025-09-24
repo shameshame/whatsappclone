@@ -55,6 +55,8 @@ export async function postJSON<T = any>(url: string, body: unknown,csrfToken?:st
 
 export function decodeCreateOptions(options: any): PublicKeyCredentialCreationOptions {
      const out: any = { ...options };
+     console.log("Options",options)
+     console.log("Userid")
      out.challenge = b64urlToArrayBuffer(options.challenge);
      // user.id may come as a string from server libs; must be BufferSource
      out.user = {

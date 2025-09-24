@@ -1,19 +1,81 @@
 // authServices.ts
 
-import { generateAuthenticationOptions, verifyAuthenticationResponse} from "@simplewebauthn/server";
-import { getCredentialById, getUserIdByCredentialId, updateCounter } from "../db"; 
+import {generateRegistrationOptions, generateAuthenticationOptions, verifyAuthenticationResponse} from "@simplewebauthn/server";
+import {getUserIdByCredentialId, updateCounter } from "../db/user"; 
 import type {RequestHandler } from "express";
 import { redis } from "../redis";
 import { issueAppSession, revokeSession } from "./auth.session.service";
 import { setSessionCookie } from "../utils/cookies";
+import { randomUUID } from "crypto";
+import { stringToBytes } from "../utils/stringToBytes";
+import { getCredentialById } from "../db/credential";
 
 const RP_ID = "localhost";
 const ORIGIN = "http://localhost:5173";
 
 
+
+
+const isCastingValid = (credCounter:bigint)=>{
+  const counterNum = Number(credCounter);
+  if (!Number.isSafeInteger(counterNum) ||
+       counterNum < 0 ||
+       counterNum > 0xFFFFFFFF
+    ) {
+     throw new Error("counter-out-of-range");
+ }
+   return counterNum
+}
+
+
 export const checkIfLoggedIn :RequestHandler = (req: any,res:any)=>{
    if (req.body.user?.id) return res.sendStatus(200);
    return res.sendStatus(401);
+}
+
+
+export const  passkeyRegistrationOptions: RequestHandler = async(req,res, next)=>{
+  try {
+    const { displayName, handle, phone } = req.body ?? {};
+    
+    if (!displayName || typeof displayName !== "string") {
+      return res.status(400).json({ ok: false, message: "displayName required" });
+    }
+
+    // (optional) ensure handle uniqueness up front
+    // await assertHandleAvailable(handle);
+
+    
+    const userId = randomUUID();
+
+    const options = await generateRegistrationOptions({
+      rpID: RP_ID,
+      rpName: "Your App",
+      userID: stringToBytes(userId), // simplewebauthn will encode to bytes for user.id
+      userName: handle || `user-${userId.slice(0,8)}`,
+      userDisplayName: displayName,
+      attestationType: "none",
+      // excludeCredentials: list existing passkeys for this user if you pre-created a row
+    });
+
+    // Store a pending record keyed by userId (NOT by challenge alone)
+    await redis.set(
+      `reg:${userId}`,
+      JSON.stringify({
+        expectedChallenge: options.challenge,
+        displayName,
+        handle: handle || null,
+        phone: phone || null,
+        createdAt: Date.now(),
+      }),
+      { EX: 600 } // 10 minutes
+    );
+
+    // You may return userId to the client; it’s just a correlation id for verify.
+    res.json({ userId, options });
+  } catch (err) { next(err); }
+
+
 }
 
 export const passkeyUsernamelessLoginOptions: RequestHandler = async (_req, res, next) => {
@@ -31,6 +93,9 @@ export const passkeyUsernamelessLoginOptions: RequestHandler = async (_req, res,
 };
 
 
+
+
+
 export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
   const { authResp } = req.body ?? {};
   if (!authResp) return res.status(400).json({ ok: false });
@@ -46,7 +111,9 @@ export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
   const credIdB64 = authResp.rawId as string;
   const cred = await getCredentialById(credIdB64); // store rawId as base64url in DB to avoid binary hassle
   if (!cred) return res.status(404).json({ ok: false });
+  
 
+  
   const verification = await verifyAuthenticationResponse({
     response: authResp,
     expectedChallenge: challenge,
@@ -55,7 +122,7 @@ export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
     credential: {
       id: cred.credentialIdB64,
       publicKey: Buffer.from(cred.publicKeyB64, 'base64url'),
-      counter: cred.counter,
+      counter: isCastingValid(cred.counter),
       transports: cred.transports ? JSON.parse(cred.transports) : undefined,
     },
   });

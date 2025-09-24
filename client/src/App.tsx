@@ -1,19 +1,12 @@
-import {BrowserRouter,Routes,Route, useSearchParams} from "react-router"
-
-import ChatList from "./components/ChatList"
-import SideBar from './components/SideBar'
+import {BrowserRouter,Routes,Route} from "react-router"
 import ChatWindow from './components/ChatWindow'
 import Login from "./components/Login";
-import QrScanner from "./components/QRScanner";
 import { QrProvider } from "./components/context/QrContext";
 import QRGenerator from "./components/QRGenerator";
 import ScanPage from "./components/ScanPage";
+import CreateAccount from "./components/CreateAccount"
 
-// function WithQr({ children }: { children: React.ReactNode }) {
-//   const [params] = useSearchParams();
-//   const token    = params.get("token")!;
-//   return <QrProvider token={token}>{children}</QrProvider>;
-// }
+
 
 
 
@@ -24,7 +17,7 @@ function App() {
     <div className="flex  w-full h-screen bg-[#F5F5DC]">
      <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Login/>} />
+        <Route path="/" element={<CreateAccount/>} />
        
           <Route path="/scan" element={<QrProvider><ScanPage /></QrProvider>} />
           <Route path="/qr" element={<QrProvider><QRGenerator /></QrProvider>} />
