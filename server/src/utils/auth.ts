@@ -1,6 +1,6 @@
 
 import { randomBytes } from "crypto";
-import { SignJWT } from "jose";
+
 import { redis } from "../redis";
 
 import { AuthCodePayload } from "../types/authPayload";

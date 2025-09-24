@@ -88,7 +88,7 @@ export async function consumeAndExpire(io: SocketIOServer, sessionId: string, re
 }
 
 // Optional: periodic sweeper (safety net; Redis TTL already handles it)
-export function startSweeper(io: SocketIOServer) {
+export function startSweeper(_io: SocketIOServer) {
   setInterval(async () => {
     // Not strictly needed—Redis expires keys automatically.
     // You could scan for near-expiry keys and warn the client if you want.

@@ -1,10 +1,8 @@
 // authServices.ts
 
-import { generateAuthenticationOptions, verifyAuthenticationResponse,
-         type VerifyAuthenticationResponseOpts,
-       } from "@simplewebauthn/server";
+import { generateAuthenticationOptions, verifyAuthenticationResponse} from "@simplewebauthn/server";
 import { getCredentialById, getUserIdByCredentialId, updateCounter } from "../db"; 
-import type { Request, Response, NextFunction, RequestHandler } from "express";
+import type {RequestHandler } from "express";
 import { redis } from "../redis";
 import { issueAppSession, revokeSession } from "./auth.session.service";
 import { setSessionCookie } from "../utils/cookies";
@@ -33,11 +31,12 @@ export const passkeyUsernamelessLoginOptions: RequestHandler = async (_req, res,
 };
 
 
-export const mapCredentialToUserId : RequestHandler = async(req, res, next)=>{
+export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
   const { authResp } = req.body ?? {};
   if (!authResp) return res.status(400).json({ ok: false });
-
-  const expectedChallenge = await redis.get(`wa:auth:${authResp.response?.clientDataJSON?.challenge}`) // won't exist; use a different keying
+  
+  // won't exist; use a different keying
+  // const expectedChallenge = await redis.get(`wa:auth:${authResp.response?.clientDataJSON?.challenge}`) 
   // Better: store by challenge you sent, then read it back from server-side state.
   // Simpler approach:
   const challenge = authResp.response?.clientDataJSON?.challenge; // you encoded b64url; generally your server should track it separately

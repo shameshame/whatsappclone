@@ -4,7 +4,6 @@ import type { Server as SocketIOServer } from "socket.io";
 import {
   createPairingSession, approveIfValid, getSocketId, consumeAndExpire,getStatus
 } from "../services/session.service";
-import crypto from 'crypto';
 import { createAuthCode,takeAuthCode } from "../utils/auth";
 import { issueAppSession } from "../services/auth.session.service";
 import { setSessionCookie } from "../utils/cookies";

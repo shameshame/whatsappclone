@@ -17,11 +17,13 @@ export function getCredentialById(credentialIdB64: string) {
  * Return the userId that owns this credential (or null if not found).
  * Useful when doing usernameless passkey auth: credential → user.
  */
-export async function getUserIdByCredentialId(credentialIdB64: string) {
+export async function getUserIdByCredentialId(credentialIdB64: string) : Promise<string> {
   const row = await prisma.credential.findUnique({
     where: { credentialIdB64 },
     select: { userId: true },
   });
+  
+  if (!row) throw new Error("credential-not-found");
   return row?.userId ?? null;
 }
 

@@ -1,17 +1,14 @@
 import express from "express";
 import http from "http";
-import { randomUUID,randomBytes  } from "crypto";
-
 import { Server as SocketIOServer } from "socket.io";
-import { createAdapter } from "@socket.io/redis-adapter";
-import { createClient } from "redis";
-import { initRedis, redis } from "./redis";
+import { initRedis} from "./redis";
 import { sessionRouter } from "./routes/session.routes";
 import { authRouter } from "./routes/auth.routes";
 import { registerSocket, emitPendingIfAny } from "./services/session.service";
-import { v4 as uuidv4 } from "uuid";
+
 
 import cors from "cors";
+import { randomBytes } from "crypto";
 
 
 const cookieParser = require("cookie-parser")

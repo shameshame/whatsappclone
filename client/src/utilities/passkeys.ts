@@ -24,16 +24,18 @@ function b64urlToArrayBuffer(b64url: string): ArrayBuffer {
 
 
 
-function arrayBufferToB64url(buf: ArrayBuffer): string {
+export function arrayBufferToB64url(buf: ArrayBufferLike): string {
   const bytes = new Uint8Array(buf);
   let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  const b64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64");
+  for (const byte of bytes) binary += String.fromCharCode(byte); // byte: number
+  const b64 = typeof btoa === "function"
+    ? btoa(binary)
+    : Buffer.from(binary, "binary").toString("base64");
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 // tiny fetch helper (keeps credentials + optional CSRF header)
-  export async function postJSON<T = any>(url: string, body: unknown,csrfToken?:string): Promise<T> {
+export async function postJSON<T = any>(url: string, body: unknown,csrfToken?:string): Promise<T> {
     const res = await fetch(url, {
       method: "POST",
       credentials: "include",
