@@ -4,6 +4,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { initRedis} from "./redis";
 import { sessionRouter } from "./routes/session.routes";
 import { authRouter } from "./routes/auth.routes";
+import { registryRouter } from "./routes/registration.routes";
 import { registerSocket, emitPendingIfAny } from "./services/session.service";
 
 
@@ -46,6 +47,7 @@ app.set("io", io);
 
 app.use("/api/session", sessionRouter);
 app.use("/api/auth",authRouter)
+app.use("/api/registration",registryRouter)
 
 
 // issue a CSRF cookie if it's missing
@@ -62,16 +64,16 @@ app.use((req, res, next) => {
 });
 
 
-app.use((req, res, next) => {
-  const SAFE = new Set(["GET","HEAD","OPTIONS"]);
-  if (SAFE.has(req.method)) return next();
+// app.use((req, res, next) => {
+//   const SAFE = new Set(["GET","HEAD","OPTIONS"]);
+//   if (SAFE.has(req.method)) return next();
   
-  const csrfHeader = req.get("X-CSRF-Token");
-  const csrfCookie = req.cookies?.csrf;
+//   const csrfHeader = req.get("X-CSRF-Token");
+//   const csrfCookie = req.cookies?.csrf;
   
-  if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) return res.sendStatus(403);
-  next();
-});
+//   if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) return res.sendStatus(403);
+//   next();
+// });
 
 
 

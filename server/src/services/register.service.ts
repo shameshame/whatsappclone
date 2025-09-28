@@ -8,15 +8,7 @@ import { randomUUID } from "crypto";
 import { stringToBytes} from "../utils/stringToBytes";
 import { toB64url } from "../utils/toB64url";
 import { createUserIfNotCreatedYet } from "../db/user";
-
-
-const RP_ID = "localhost";
-const ORIGIN = "http://localhost:5173";
-
-
-
-
-
+import { getRpIdFromOrigin,getExpectedOrigin } from "../utils/origin";
 
 export const  passkeyRegistrationOptions: RequestHandler = async(req,res, next)=>{
   try {
@@ -26,14 +18,11 @@ export const  passkeyRegistrationOptions: RequestHandler = async(req,res, next)=
       return res.status(400).json({ ok: false, message: "displayName required" });
     }
 
-    // (optional) ensure handle uniqueness up front
-    // await assertHandleAvailable(handle);
-
-    
     const userId = randomUUID();
-
+    const origin = getExpectedOrigin(req);
+   
     const options = await generateRegistrationOptions({
-      rpID: RP_ID,
+      rpID : getRpIdFromOrigin(origin),
       rpName: "Your App",
       userID: stringToBytes(userId), // simplewebauthn will encode to bytes for user.id
       userName: handle || `user-${userId.slice(0,8)}`,
@@ -58,13 +47,13 @@ export const  passkeyRegistrationOptions: RequestHandler = async(req,res, next)=
     // You may return userId to the client; it’s just a correlation id for verify.
     res.json({ userId, options });
   } catch (err) { next(err); }
-
-
 }
 
 export const registerVerify: RequestHandler = async (req, res, next) => {
   try {
     const { userId, attResp, deviceInfo } = req.body ?? {};
+    const origin = getExpectedOrigin(req);
+    
     if (!userId || !attResp) return res.status(400).json({ ok: false });
 
     const pendingRaw = await redis.get(`reg:${userId}`);
@@ -79,8 +68,8 @@ export const registerVerify: RequestHandler = async (req, res, next) => {
    const verification = await verifyRegistrationResponse({
       response: attResp,
       expectedChallenge:pending.expectedChallenge,
-      expectedOrigin: ORIGIN,
-      expectedRPID: RP_ID,
+      expectedOrigin: origin,
+      expectedRPID: getRpIdFromOrigin(origin)
     });
 
     if (!verification.verified || !verification.registrationInfo) {
@@ -89,22 +78,19 @@ export const registerVerify: RequestHandler = async (req, res, next) => {
 
      const info = verification.registrationInfo;
      const { id, publicKey, counter } = info.credential;
-     const credentialIdB64 = toB64url(id);
-     const publicKeyB64 = toB64url(publicKey);
-
+     
      const complete: RegComplete = {
         ...pending,
         id: userId,
-        credentialIdB64: toB64url(id),          
-        publicKeyB64: toB64url(publicKey),      
+        credentialIdB64: toB64url(id),         
+        publicKeyB64:toB64url(publicKey),      
         counter: BigInt(counter),               // number -> bigint for DB BIGINT
         transports: transportsJson,
     };
 
     // Upsert User (create if not pre-created)
     createUserIfNotCreatedYet(complete)
-   
-
+    
     // Create app session
     const sid = await issueAppSession(userId, deviceInfo);
     setSessionCookie(res, sid);

@@ -4,9 +4,25 @@ import type { Server as SocketIOServer } from "socket.io";
 import { redis } from "../redis";
 import { SessionStatus } from "../types/sessionStatus";
 import { PairRecord } from "../types/pairRecord";
+import { RequestHandler } from "express";
+import { PrismaClient } from "@prisma/client";
 
 const TTL = Number(process.env.TTL_SECONDS ?? 120);
 const key = (id: string) => `session:${id}`;
+const prisma = new PrismaClient();
+
+
+export  const getMe : RequestHandler = async (req, res) => {
+  const { id, device } = (req as any).user as { id: string; device?: { name?: string } };
+  // return a minimal profile; no secrets
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, displayName: true, handle: true, phoneE164: true, createdAt: true },
+  });
+  // (optional) add TTL so client can decide when to refresh UI
+  const ttl = await redis.ttl(`sess:${req.cookies.sid}`);
+  res.json({ ok: true, user, device, ttl });
+}; 
 
 
 export async function getStatus(sessionId: string): Promise<{ status: SessionStatus | "unknown" | "expired"; ttl: number }> {

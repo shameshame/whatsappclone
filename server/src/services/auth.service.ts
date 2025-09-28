@@ -1,13 +1,11 @@
 // authServices.ts
 
-import {generateRegistrationOptions, generateAuthenticationOptions, verifyAuthenticationResponse} from "@simplewebauthn/server";
+import {generateAuthenticationOptions, verifyAuthenticationResponse} from "@simplewebauthn/server";
 import {getUserIdByCredentialId, updateCounter } from "../db/user"; 
 import type {RequestHandler } from "express";
 import { redis } from "../redis";
 import { issueAppSession, revokeSession } from "./auth.session.service";
 import { setSessionCookie } from "../utils/cookies";
-import { randomUUID } from "crypto";
-import { stringToBytes } from "../utils/stringToBytes";
 import { getCredentialById } from "../db/credential";
 
 const RP_ID = "localhost";
@@ -34,49 +32,6 @@ export const checkIfLoggedIn :RequestHandler = (req: any,res:any)=>{
 }
 
 
-export const  passkeyRegistrationOptions: RequestHandler = async(req,res, next)=>{
-  try {
-    const { displayName, handle, phone } = req.body ?? {};
-    
-    if (!displayName || typeof displayName !== "string") {
-      return res.status(400).json({ ok: false, message: "displayName required" });
-    }
-
-    // (optional) ensure handle uniqueness up front
-    // await assertHandleAvailable(handle);
-
-    
-    const userId = randomUUID();
-
-    const options = await generateRegistrationOptions({
-      rpID: RP_ID,
-      rpName: "Your App",
-      userID: stringToBytes(userId), // simplewebauthn will encode to bytes for user.id
-      userName: handle || `user-${userId.slice(0,8)}`,
-      userDisplayName: displayName,
-      attestationType: "none",
-      // excludeCredentials: list existing passkeys for this user if you pre-created a row
-    });
-
-    // Store a pending record keyed by userId (NOT by challenge alone)
-    await redis.set(
-      `reg:${userId}`,
-      JSON.stringify({
-        expectedChallenge: options.challenge,
-        displayName,
-        handle: handle || null,
-        phone: phone || null,
-        createdAt: Date.now(),
-      }),
-      { EX: 600 } // 10 minutes
-    );
-
-    // You may return userId to the client; it’s just a correlation id for verify.
-    res.json({ userId, options });
-  } catch (err) { next(err); }
-
-
-}
 
 export const passkeyUsernamelessLoginOptions: RequestHandler = async (_req, res, next) => {
   try {
@@ -91,10 +46,6 @@ export const passkeyUsernamelessLoginOptions: RequestHandler = async (_req, res,
     next(err); // let your error middleware handle it
   }
 };
-
-
-
-
 
 export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
   const { authResp } = req.body ?? {};

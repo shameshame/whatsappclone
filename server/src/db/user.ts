@@ -75,13 +75,6 @@ export async function createUserIfNotCreatedYet(complete:RegComplete){
       },
     });
 
-    // Optional: record the device that just registered
-      // await tx.device.create({
-      //   data: {
-      //     id: randomUUID(),
-      //     userId:,
-      //     name: deviceInfo?.name ?? null,
-      //   },
-      // });
+    
     })
 }

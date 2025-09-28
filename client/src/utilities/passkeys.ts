@@ -1,28 +1,47 @@
 // passkeys.ts — usernameless passkey login helper (works on phone/desktop)
-type PublicKeyCredentialRequestOptionsJSON = any;
+import { fromB64URL, toB64url,toUTF8 } from "./encodingDecoding";
+import { PublicKeyCredentialRequestOptionsJSON } from "@/types/credential";
 
-// base64url helpers
-const pad = (string: string) => string + "=".repeat((4 - (string.length % 4)) % 4);
-const b64urlToBuf = (string: string) => Uint8Array.from(atob(pad(string.replace(/-/g, "+").replace(/_/g, "/"))), c => c.charCodeAt(0)).buffer;
-const bufToB64url = (buf: ArrayBuffer) => {
-  const bin = String.fromCharCode(...new Uint8Array(buf));
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+// --- coercers to fix the two type errors ---
+const ATTESTATION_VALUES = ["none", "indirect", "direct", "enterprise"] as const;
+
+// Some browsers expose getTransports() only on attestation response (WebAuthn L3)
+type AttestationWithTransports = AuthenticatorAttestationResponse & {
+  getTransports?: () => AuthenticatorTransport[];
 };
+// Note: adjust list to your lib.dom version if needed
+const TRANSPORT_VALUES = ["usb", "nfc", "ble", "internal", "cable", "hybrid"] as const;
+
+// Type guards for response kinds
+const isAttestation = (response: AuthenticatorResponse): response is AuthenticatorAttestationResponse =>
+  "attestationObject" in response;
+
+const isAssertion = (response: AuthenticatorResponse): response is AuthenticatorAssertionResponse =>
+  "authenticatorData" in response && "signature" in response;
 
 
 
-function b64urlToArrayBuffer(b64url: string): ArrayBuffer {
-    // Convert base64url -> base64
-    const pad = (str: string) => str + "=".repeat((4 - (str.length % 4)) % 4);
-    const b64 = pad(b64url.replace(/-/g, "+").replace(/_/g, "/"));
-    const raw = typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("binary");
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-    return bytes.buffer;
+
+function coerceTransports(
+  arr?: readonly string[]
+): AuthenticatorTransport[] | undefined {
+  if (!arr) return undefined;
+  const filtered = arr.filter(
+    (t): t is AuthenticatorTransport =>
+      (TRANSPORT_VALUES as readonly string[]).includes(t)
+  );
+  return filtered.length ? filtered : undefined;
 }
 
+function coerceAttestation(
+  value?: string
+): AttestationConveyancePreference | undefined {
+  return ATTESTATION_VALUES.includes(value as any)
+    ? (value as AttestationConveyancePreference)
+    : undefined;
+}
 
-
+//Functions to export 
 
 export function arrayBufferToB64url(buf: ArrayBufferLike): string {
   const bytes = new Uint8Array(buf);
@@ -53,55 +72,106 @@ export async function postJSON<T = any>(url: string, body: unknown,csrfToken?:st
   }
 
 
-export function decodeCreateOptions(options: any): PublicKeyCredentialCreationOptions {
-     const out: any = { ...options };
-     console.log("Options",options)
-     console.log("Userid")
-     out.challenge = b64urlToArrayBuffer(options.challenge);
-     // user.id may come as a string from server libs; must be BufferSource
-     out.user = {
-     ...options.user,
-     id: typeof options.user.id === "string" ? b64urlToArrayBuffer(options.user.id) : options.user.id,
-     };
-     if (Array.isArray(options.excludeCredentials)) {
-     out.excludeCredentials = options.excludeCredentials.map((c: any) => ({
-     ...c,
-     id: typeof c.id === "string" ? new Uint8Array(b64urlToArrayBuffer(c.id)) : c.id,
-     }));
-     }
-     if (options.hints) out.hints = options.hints;
-     return out as PublicKeyCredentialCreationOptions;
+export function decodeCreateOptions(
+  opts: PublicKeyCredentialCreationOptionsJSON
+): PublicKeyCredentialCreationOptions {
+  
+  const out: PublicKeyCredentialCreationOptions = {
+    rp: opts.rp,
+    pubKeyCredParams: opts.pubKeyCredParams,
+    challenge: fromB64URL(opts.challenge),
+    user: {
+      ...opts.user,
+      id: typeof opts.user.id === "string" ? fromB64URL(opts.user.id) : opts.user.id,
+    },
+    timeout: opts.timeout,
+    attestation: coerceAttestation(opts.attestation), // ✅ fixes string vs AttestationConveyancePreference
+    authenticatorSelection: opts.authenticatorSelection,
+  };
+
+  if (opts.excludeCredentials?.length) {
+    out.excludeCredentials = opts.excludeCredentials.map(
+      (cred): PublicKeyCredentialDescriptor => ({
+        type: "public-key",
+        id: typeof cred.id === "string" ? fromB64URL(cred.id) : cred.id,
+        transports: coerceTransports(cred.transports), // ✅ fixes string[] vs AuthenticatorTransport[]
+      })
+    );
+  }
+
+  return out;
 }
 
-export function decodeGetOptions(opts: any): PublicKeyCredentialRequestOptions {
-  const out: any = { ...opts };
-  out.challenge = b64urlToBuf(opts.challenge);
-  if (Array.isArray(opts.allowCredentials)) {
-    out.allowCredentials = opts.allowCredentials.map((c: any) => ({
-      ...c,
-      id: typeof c.id === "string" ? new Uint8Array(b64urlToBuf(c.id)) : c.id,
+export function decodeGetOptions(
+  opts: PublicKeyCredentialRequestOptionsJSON
+): PublicKeyCredentialRequestOptions {
+  const {
+    challenge,
+    allowCredentials,
+    // the rest of the fields copy over verbatim
+    ...rest
+  } = opts;
+
+  const out: PublicKeyCredentialRequestOptions = {
+    ...rest,
+    challenge: fromB64URL(challenge),
+  };
+
+  if (allowCredentials && allowCredentials.length) {
+    out.allowCredentials = allowCredentials.map((cred): PublicKeyCredentialDescriptor => ({
+      type: cred.type,
+      id: typeof cred.id === "string" ? fromB64URL(cred.id) : cred.id, // BufferSource
+      transports: cred.transports,
     }));
   }
   return out;
 }
 
+// ---- Strictly typed serializer ----
+export function publicKeyCredentialToJSON(cred: PublicKeyCredential): PublicKeyCredentialJSON {
+  // Prefer native serializer if present
+  type WithToJSON = PublicKeyCredential & {toJSON?: () => PublicKeyCredentialJSON;};
+  const c = cred as WithToJSON;
+  
+  if (typeof c.toJSON === "function") return c.toJSON();
 
-export function publicKeyCredentialToJSON(cred: any): any {
-  if (!cred) return null;
-  if (cred instanceof ArrayBuffer) return bufToB64url(cred);
-  if (cred.rawId instanceof ArrayBuffer) cred.rawId = bufToB64url(cred.rawId);
-  if (cred instanceof Uint8Array) return arrayBufferToB64url(cred.buffer);
-  if (cred.response) {
-    const response = cred.response as any;
-    if (response.clientDataJSON) response.clientDataJSON = bufToB64url(response.clientDataJSON);
-    if (response.authenticatorData) response.authenticatorData = bufToB64url(response.authenticatorData);
-    if (response.signature) response.signature = bufToB64url(response.signature);
-    if (response.userHandle && response.userHandle instanceof ArrayBuffer) response.userHandle = bufToB64url(response.userHandle);
+  const base = {
+    id: cred.id,
+    type: cred.type as "public-key",
+    rawId: toB64url(toUTF8(cred.rawId)),
+    clientExtensionResults: cred.getClientExtensionResults(),
+  };
+
+  const resp = cred.response;
+
+  if (isAttestation(resp)) {
+    const att = resp as AttestationWithTransports;
+    return {
+      ...base,
+      response: {
+        clientDataJSON: toB64url(toUTF8(att.clientDataJSON)),
+        attestationObject: toB64url(toUTF8(att.attestationObject)),
+        transports:
+          typeof att.getTransports === "function" ? att.getTransports() : undefined,
+      },
+    };
   }
-  for (const k in cred) if (typeof cred[k] === "object") cred[k] = publicKeyCredentialToJSON(cred[k]);
-  return cred;
-}
 
+  if (isAssertion(resp)) {
+    return {
+      ...base,
+      response: {
+        clientDataJSON: toB64url(toUTF8(resp.clientDataJSON)),
+        authenticatorData: toB64url(toUTF8(resp.authenticatorData)),
+        signature: toB64url(toUTF8(resp.signature)),
+        userHandle:
+          resp.userHandle == null? null: toB64url(new Uint8Array(resp.userHandle))
+      },
+    };
+  }
+
+  throw new Error("Unsupported PublicKeyCredential response type");
+}
 
 
 
@@ -118,3 +188,7 @@ export async function loginWithPasskey(): Promise<void> {
   const authResp = publicKeyCredentialToJSON(assertion);
   await postJSON("/auth/passkey/login/verify", { authResp }); // server sets httpOnly cookies
 }
+
+
+
+

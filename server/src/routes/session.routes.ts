@@ -2,13 +2,18 @@
 import { Router } from "express";
 import type { Server as SocketIOServer } from "socket.io";
 import {
-  createPairingSession, approveIfValid, getSocketId, consumeAndExpire,getStatus
+  createPairingSession, approveIfValid, getSocketId, consumeAndExpire,getStatus,
+  getMe
 } from "../services/session.service";
 import { createAuthCode,takeAuthCode } from "../utils/auth";
 import { issueAppSession } from "../services/auth.session.service";
 import { setSessionCookie } from "../utils/cookies";
+import { requireAuth } from "../middleware/requireAuth";
 
 export const sessionRouter = Router();
+
+// - requireAuth: reads `sid` cookie -> loads session from Redis -> attaches req.user and touchSession()
+sessionRouter.get("/me",requireAuth,getMe)
 
 
 /** GET /api/session/:id/status -> { status, ttl } (desktop fallback) */

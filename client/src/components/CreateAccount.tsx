@@ -36,7 +36,7 @@ type CreateAccountProps = {
 //   csrfToken?: string;
 };
 
-const DEFAULT_API = "api/auth/passkey";
+const DEFAULT_API = "api/registration";
 
 export default function CreateAccount({apiBase = DEFAULT_API,  }: CreateAccountProps){
 
@@ -80,7 +80,7 @@ const [displayName, handle, phone] = useWatch({
         phone: values.phone?.trim(),
       };
       const { userId, options } = await postJSON<{ userId: string; options: any }>(
-        `${apiBase}/registration/options`,
+        `${apiBase}/options`,
         payload
       );
 
@@ -93,7 +93,7 @@ const [displayName, handle, phone] = useWatch({
 
       // 4) Send attestation back to server for verification & session issuance
       const attResp = publicKeyCredentialToJSON(credential);
-      await postJSON(`${apiBase}/login/verify`, { userId, attResp });
+      await postJSON(`${apiBase}/verify`, { userId, attResp });
 
       // Server should set httpOnly cookie; continue
        navigate("/chat",{replace:true})
