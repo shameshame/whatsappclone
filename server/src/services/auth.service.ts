@@ -7,11 +7,7 @@ import { redis } from "../redis";
 import { issueAppSession, revokeSession } from "./auth.session.service";
 import { setSessionCookie } from "../utils/cookies";
 import { getCredentialById } from "../db/credential";
-
-const RP_ID = "localhost";
-const ORIGIN = "http://localhost:5173";
-
-
+import { getRpIdFromOrigin,getExpectedOrigin } from "../utils/origin";
 
 
 const isCastingValid = (credCounter:bigint)=>{
@@ -33,10 +29,10 @@ export const checkIfLoggedIn :RequestHandler = (req: any,res:any)=>{
 
 
 
-export const passkeyUsernamelessLoginOptions: RequestHandler = async (_req, res, next) => {
+export const passkeyUsernamelessLoginOptions: RequestHandler = async (req, res, next) => {
   try {
     const options = await generateAuthenticationOptions({
-      rpID: RP_ID,
+      rpID: getRpIdFromOrigin(getExpectedOrigin(req)),
       userVerification: "required",
       // usernameless: do not supply allowCredentials
     });
@@ -49,6 +45,7 @@ export const passkeyUsernamelessLoginOptions: RequestHandler = async (_req, res,
 
 export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
   const { authResp } = req.body ?? {};
+  const origin = getExpectedOrigin(req)
   if (!authResp) return res.status(400).json({ ok: false });
   
   // won't exist; use a different keying
@@ -63,13 +60,11 @@ export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
   const cred = await getCredentialById(credIdB64); // store rawId as base64url in DB to avoid binary hassle
   if (!cred) return res.status(404).json({ ok: false });
   
-
-  
   const verification = await verifyAuthenticationResponse({
     response: authResp,
     expectedChallenge: challenge,
-    expectedOrigin: ORIGIN,
-    expectedRPID: RP_ID,
+    expectedOrigin: origin,
+    expectedRPID: getRpIdFromOrigin(origin),
     credential: {
       id: cred.credentialIdB64,
       publicKey: Buffer.from(cred.publicKeyB64, 'base64url'),

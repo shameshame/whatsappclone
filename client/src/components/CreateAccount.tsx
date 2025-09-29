@@ -92,8 +92,8 @@ const [displayName, handle, phone] = useWatch({
       if (!credential) throw new Error("Passkey creation was cancelled.");
 
       // 4) Send attestation back to server for verification & session issuance
-      const attResp = publicKeyCredentialToJSON(credential);
-      await postJSON(`${apiBase}/verify`, { userId, attResp });
+      const attestationResp = publicKeyCredentialToJSON(credential);
+      await postJSON(`${apiBase}/verify`, { userId, attResp: attestationResp });
 
       // Server should set httpOnly cookie; continue
        navigate("/chat",{replace:true})
