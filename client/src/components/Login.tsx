@@ -1,7 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import LoginByQR from "./LoginByQr";
+import Home from "./Home";
 import { useState } from "react";
 
 
@@ -23,7 +23,7 @@ const [phone, setPhone] = useState("");
 
           <TabsContent value="qr" className="text-center mt-6">
             
-            <LoginByQR/>
+            <Home/>
           </TabsContent>
 
           <TabsContent value="phone" className="mt-6">

@@ -58,7 +58,7 @@ export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
   // Find credential by rawId
   const credIdB64 = authResp.rawId as string;
   const cred = await getCredentialById(credIdB64); // store rawId as base64url in DB to avoid binary hassle
-  if (!cred) return res.status(404).json({ ok: false });
+  if (!cred) return res.status(404).json({ ok: false,code:"unknown-credential" });
   
   const verification = await verifyAuthenticationResponse({
     response: authResp,

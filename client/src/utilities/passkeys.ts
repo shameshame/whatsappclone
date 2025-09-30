@@ -1,4 +1,5 @@
 // passkeys.ts — usernameless passkey login helper (works on phone/desktop)
+import { DEFAULT_LOGIN_PASSKEY_API } from "./constants";
 import { fromB64URL, toB64url,toUTF8 } from "./encodingDecoding";
 import { PublicKeyCredentialRequestOptionsJSON } from "@/types/credential";
 
@@ -176,17 +177,30 @@ export function publicKeyCredentialToJSON(cred: PublicKeyCredential): PublicKeyC
 
 
 /** Logs the user in with a discoverable passkey (no handle needed). */
-export async function loginWithPasskey(): Promise<void> {
-  // Ask server for WebAuthn options (usernameless: no handle)
-  const { options } = await postJSON<{ options: PublicKeyCredentialRequestOptionsJSON }>("/auth/passkey/login/options", {});
-  const publicKey = decodeGetOptions(options);
-  // Optional nicety: (publicKey as any).mediation = "optional";
+export async function loginWithPasskey(): Promise<Response> {
+  // 1) Ask server for *authentication* options (usernameless => no allowCredentials)
+        const { options } = await postJSON<{ options: PublicKeyCredentialRequestOptionsJSON }>(
+          `${DEFAULT_LOGIN_PASSKEY_API}/options`,{}
+        );
+  
+        // 2) Decode into native shapes
+        const publicKey = decodeGetOptions(options);
+  
+        // 3) Request assertion (Face/Touch ID dialog)
+        const assertion = (await navigator.credentials.get({
+          publicKey,
+          // Let the browser auto-prompt if possible (safe to include; ignored if unsupported)
+          mediation: "optional" as CredentialMediationRequirement,
+        })) as PublicKeyCredential | null;
+  
+        if (!assertion) throw new Error("Authentication was cancelled.");
+  
+        // 4) Send to server for verification & session issuance (sets httpOnly cookie)
+        const authResp = publicKeyCredentialToJSON(assertion);
+        let response= await postJSON(`${DEFAULT_LOGIN_PASSKEY_API}/verify`, { authResp });
+       
 
-  const assertion = (await navigator.credentials.get({ publicKey })) as PublicKeyCredential | null;
-  if (!assertion) throw new Error("cancelled");
-
-  const authResp = publicKeyCredentialToJSON(assertion);
-  await postJSON("/auth/passkey/login/verify", { authResp }); // server sets httpOnly cookies
+       return response
 }
 
 
