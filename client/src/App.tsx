@@ -6,6 +6,7 @@ import QRGenerator from "./components/QRGenerator";
 import ScanPage from "./components/ScanPage";
 import CreateAccount from "./components/CreateAccount"
 import { AuthProvider } from "./components/context/AuthContext";
+import LoginPasskey from "./components/LoginPassKey";
 
 
 
@@ -20,6 +21,7 @@ function App() {
         <AuthProvider>
           <Routes>
             <Route path="/register" element={<CreateAccount/>} />
+            <Route path="/phone/login" element={<LoginPasskey/>} />
             <Route path="/scan" element={<QrProvider><ScanPage/></QrProvider>} />
             <Route path="/qr" element={<QrProvider><QRGenerator/></QrProvider>} />
             <Route path="/chat" element={<ChatWindow/>}/>

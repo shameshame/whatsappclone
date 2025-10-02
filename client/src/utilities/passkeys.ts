@@ -1,6 +1,7 @@
 // passkeys.ts — usernameless passkey login helper (works on phone/desktop)
 import { DEFAULT_LOGIN_PASSKEY_API } from "./constants";
 import { fromB64URL, toB64url,toUTF8 } from "./encodingDecoding";
+import { httpErrorFromResponse,toAppError  } from "./error-utils";
 import { PublicKeyCredentialRequestOptionsJSON } from "@/types/credential";
 
 // --- coercers to fix the two type errors ---
@@ -55,7 +56,12 @@ export function arrayBufferToB64url(buf: ArrayBufferLike): string {
 }
 
 // tiny fetch helper (keeps credentials + optional CSRF header)
-export async function postJSON<T = any>(url: string, body: unknown,csrfToken?:string): Promise<T> {
+export async function postJSON<TOut, TIn = unknown>(path: string, body: TIn,csrfToken?:string,init?: RequestInit): Promise<TOut> {
+    const url = path.startsWith("http")
+    ? path
+    : new URL(path.startsWith("/") ? path : `/${path}`, window.location.origin).toString();
+  
+  try{
     const res = await fetch(url, {
       method: "POST",
       credentials: "include",
@@ -65,12 +71,16 @@ export async function postJSON<T = any>(url: string, body: unknown,csrfToken?:st
       },
       body: JSON.stringify(body),
     });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(text || res.statusText);
-    }
-    return (await res.json()) as T;
+    if (!res.ok) throw await httpErrorFromResponse(res);
+    return (await res.json()) as TOut;
+  }catch(error:unknown){
+    
+    // Re-throw normalized AppError so callers can map to UI
+    if ("kind" in (error as object)) throw error as ReturnType<typeof httpErrorFromResponse>;
+    throw toAppError(error);
   }
+  
+}
 
 
 export function decodeCreateOptions(
@@ -166,7 +176,7 @@ export function publicKeyCredentialToJSON(cred: PublicKeyCredential): PublicKeyC
         authenticatorData: toB64url(toUTF8(resp.authenticatorData)),
         signature: toB64url(toUTF8(resp.signature)),
         userHandle:
-          resp.userHandle == null? null: toB64url(new Uint8Array(resp.userHandle))
+          resp.userHandle === null? null: toB64url(new Uint8Array(resp.userHandle))
       },
     };
   }
@@ -175,33 +185,33 @@ export function publicKeyCredentialToJSON(cred: PublicKeyCredential): PublicKeyC
 }
 
 
-
-/** Logs the user in with a discoverable passkey (no handle needed). */
-export async function loginWithPasskey(): Promise<Response> {
-  // 1) Ask server for *authentication* options (usernameless => no allowCredentials)
-        const { options } = await postJSON<{ options: PublicKeyCredentialRequestOptionsJSON }>(
-          `${DEFAULT_LOGIN_PASSKEY_API}/options`,{}
-        );
+export async function loginWithPasskey(): Promise<Response | unknown> {
+    // 1) Ask server for *authentication* options (usernameless => no allowCredentials)
+          const { options } = await postJSON<{ options: PublicKeyCredentialRequestOptionsJSON }>(
+            `${DEFAULT_LOGIN_PASSKEY_API}/options`,{}
+          );
   
-        // 2) Decode into native shapes
-        const publicKey = decodeGetOptions(options);
+          console.log(options)
+    
+          // 2) Decode into native shapes
+          const publicKey = decodeGetOptions(options);
+    
+          // 3) Request assertion (Face/Touch ID dialog)
+          const assertion = (await navigator.credentials.get({
+            publicKey,
+            // Let the browser auto-prompt if possible (safe to include; ignored if unsupported)
+            mediation: "optional" as CredentialMediationRequirement,
+          })) as PublicKeyCredential | null;
+    
+          if (!assertion) throw new Error("Authentication was cancelled.");
+    
+          // 4) Send to server for verification & session issuance (sets httpOnly cookie)
+          const authResp = publicKeyCredentialToJSON(assertion);
+          let response= await postJSON(`${DEFAULT_LOGIN_PASSKEY_API}/verify`, { authResp });
+         
   
-        // 3) Request assertion (Face/Touch ID dialog)
-        const assertion = (await navigator.credentials.get({
-          publicKey,
-          // Let the browser auto-prompt if possible (safe to include; ignored if unsupported)
-          mediation: "optional" as CredentialMediationRequirement,
-        })) as PublicKeyCredential | null;
-  
-        if (!assertion) throw new Error("Authentication was cancelled.");
-  
-        // 4) Send to server for verification & session issuance (sets httpOnly cookie)
-        const authResp = publicKeyCredentialToJSON(assertion);
-        let response= await postJSON(`${DEFAULT_LOGIN_PASSKEY_API}/verify`, { authResp });
-       
-
-       return response
-}
+         return response
+  }
 
 
 

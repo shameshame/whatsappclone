@@ -8,6 +8,6 @@ export const authRouter = Router();
 
 
 authRouter.get("/session", checkIfLoggedIn);
-authRouter.post("/passkey/login/options",passkeyUsernamelessLoginOptions)
-authRouter.post("/passkey/login/verify",mapCredentialToUserId)
+authRouter.post("/passkey/options",passkeyUsernamelessLoginOptions)
+authRouter.post("/passkey/verify",mapCredentialToUserId)
 authRouter.post("/logout",requireAuth,logOutHandler)

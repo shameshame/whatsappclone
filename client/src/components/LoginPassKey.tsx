@@ -2,8 +2,12 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {loginWithPasskey} from "@/utilities/passkeys";
+import {decodeGetOptions,postJSON, publicKeyCredentialToJSON} from "@/utilities/passkeys";
+import { PublicKeyCredentialRequestOptionsJSON } from "@/types/credential";
 import { DEFAULT_LOGIN_PASSKEY_API } from "@/utilities/constants";
+import { bannerFromError } from "@/utilities/banner-map";
+import { httpErrorFromResponse, toAppError } from "@/utilities/error-utils";
+import { Banner } from "./Banner";
 
 
 
@@ -21,12 +25,62 @@ export default function LoginPasskey({
   const [supported, setSupported] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{ msg: string; variant?: "warning"|"destructive"|"success"|"default" }|null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const ok = !!(window.PublicKeyCredential && typeof window.PublicKeyCredential === "function");
     setSupported(ok);
   }, []);
+
+  
+  
+  /** Logs the user in with a discoverable passkey (no handle needed). */
+  
+  async function loginWithPasskey() {
+  try {
+    const { options } = await postJSON<{ options: PublicKeyCredentialRequestOptionsJSON }>(
+      "/api/login/options",
+      {}
+    );
+
+    const publicKey = decodeGetOptions(options);
+
+    const assertion = await navigator.credentials.get({
+      publicKey,
+      mediation: "optional" as CredentialMediationRequirement,
+    }) as PublicKeyCredential | null;
+
+    if (!assertion) {
+      const banner = bannerFromError({ kind: "webauthn-cancel", message: "" });
+      setBanner(banner);
+      return;
+    }
+
+    const authResp = publicKeyCredentialToJSON(assertion);
+    const res = await fetch("/api/login/verify", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authResp }),
+    });
+
+    if (!res.ok) {
+      const appErr = await httpErrorFromResponse(res);
+      setBanner(bannerFromError(appErr));
+      return;
+    }
+
+    navigate("/chat", { replace: true });
+  } catch (e: unknown) {
+    const appErr = toAppError(e);
+    setBanner(bannerFromError(appErr));
+  }
+}
+
+  
+
+
 
   const login = useCallback(async () => {
     setError(null);
@@ -35,13 +89,11 @@ export default function LoginPasskey({
     try {
       setSubmitting(true);
       await loginWithPasskey()
-      
-      if (onSuccess) onSuccess();
-      
-      else navigate("/chat", { replace: true });
-    } catch (e: any) {
-       console.error(e);
-       setError(e?.message || "Login failed");
+
+    
+    } catch (error: any) {
+       console.error(error);
+       setError(error?.message || "Login failed");
     } finally {
       setSubmitting(false);
     }
@@ -63,6 +115,7 @@ export default function LoginPasskey({
               {error}
             </div>
           )}
+          
         </CardHeader>
         <CardContent>
           <Button
@@ -90,6 +143,15 @@ export default function LoginPasskey({
           </p>
         </CardContent>
       </Card>
+      {banner && (<Banner message={banner.msg} variant={banner.variant} onClose={() => setBanner(null)} 
+                   action={
+                    <Button size="sm" onClick={() => navigate("/register")}>
+                                    Create account
+                    </Button>
+                   }
+                  className="mb-3"
+                  />
+      )}
     </div>
   );
 }

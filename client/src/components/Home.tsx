@@ -20,7 +20,7 @@ const Home = () => {
       to = authStatus.status==="authenticated" ? `/scan?token=${token}` : "/phone/login"
      }
      else
-        to="/register"
+        to="/qr"
      
      return to;
   }
