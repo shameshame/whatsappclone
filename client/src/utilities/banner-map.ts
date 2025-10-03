@@ -22,6 +22,7 @@ export function bannerFromError(err: AppError): BannerData {
       if (err.status === 404 && err.code === "unknown-credential") {
         return { msg: "This device’s passkey isn’t registered here. Create one now.", variant: "warning" };
       }
+      console.log("Error code",err.code)
       return { msg: err.message, variant: "destructive" };
     case "server":
       return { msg: err.message, variant: "destructive" };

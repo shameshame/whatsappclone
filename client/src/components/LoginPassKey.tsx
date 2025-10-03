@@ -8,6 +8,8 @@ import { DEFAULT_LOGIN_PASSKEY_API } from "@/utilities/constants";
 import { bannerFromError } from "@/utilities/banner-map";
 import { httpErrorFromResponse, toAppError } from "@/utilities/error-utils";
 import { Banner } from "./Banner";
+import { LoginVerifyOK } from "@/types/loginVerifyOk";
+
 
 
 
@@ -40,7 +42,7 @@ export default function LoginPasskey({
   async function loginWithPasskey() {
   try {
     const { options } = await postJSON<{ options: PublicKeyCredentialRequestOptionsJSON }>(
-      "/api/login/options",
+      `${DEFAULT_LOGIN_PASSKEY_API}/options`,
       {}
     );
 
@@ -58,22 +60,13 @@ export default function LoginPasskey({
     }
 
     const authResp = publicKeyCredentialToJSON(assertion);
-    const res = await fetch("/api/login/verify", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ authResp }),
-    });
+    await postJSON<LoginVerifyOK>(`${DEFAULT_LOGIN_PASSKEY_API}/verify`,{ authResp });
 
-    if (!res.ok) {
-      const appErr = await httpErrorFromResponse(res);
-      setBanner(bannerFromError(appErr));
-      return;
-    }
+    
 
     navigate("/chat", { replace: true });
-  } catch (e: unknown) {
-    const appErr = toAppError(e);
+  } catch (error: unknown) {
+    const appErr = toAppError(error);
     setBanner(bannerFromError(appErr));
   }
 }

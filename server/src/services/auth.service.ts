@@ -5,9 +5,10 @@ import {getUserIdByCredentialId, updateCounter } from "../db/user";
 import type {RequestHandler } from "express";
 import { redis } from "../redis";
 import { issueAppSession, revokeSession } from "./auth.session.service";
-import { setSessionCookie } from "../utils/cookies";
+import { ctxCookieOpts, setSessionCookie } from "../utils/cookies";
 import { getCredentialById } from "../db/credential";
 import { getRpIdFromOrigin,getExpectedOrigin } from "../utils/origin";
+
 
 
 const isCastingValid = (credCounter:bigint)=>{
@@ -36,7 +37,12 @@ export const passkeyUsernamelessLoginOptions: RequestHandler = async (req, res, 
       userVerification: "required",
       // usernameless: do not supply allowCredentials
     });
-    await redis.set(`wa:auth:${options.challenge}`, "1", { EX: 60 });
+    const requestId = crypto.randomUUID();
+    await redis.set(`wa:authctx:${requestId}`, options.challenge, { EX: 90 });
+
+    // Set requestId(key for challenge) as httpOnly cookie (don’t set domain; let browser use current host)
+    res.cookie("wa_ctx", requestId, ctxCookieOpts(req));
+
     res.json({ options });
   } catch (err) {
     next(err); // let your error middleware handle it
@@ -46,15 +52,20 @@ export const passkeyUsernamelessLoginOptions: RequestHandler = async (req, res, 
 export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
   const { authResp } = req.body ?? {};
   const origin = getExpectedOrigin(req)
-  if (!authResp) return res.status(400).json({ ok: false });
+  if (!authResp) return res.status(400).json({ ok: false,code: "bad-request" });
   
-  // won't exist; use a different keying
-  // const expectedChallenge = await redis.get(`wa:auth:${authResp.response?.clientDataJSON?.challenge}`) 
-  // Better: store by challenge you sent, then read it back from server-side state.
-  // Simpler approach:
-  const challenge = authResp.response?.clientDataJSON?.challenge; // you encoded b64url; generally your server should track it separately
-  // If you saved by challenge earlier, fetch now; else decode from your session store.
+  const requestId = req.cookies?.wa_ctx as string | undefined;
+  if (!requestId) return res.status(400).json({ ok: false, code: "missing-request-id" });
+  
+  const key = `wa:authctx:${requestId}`;
+  const expectedChallenge = await redis.get(key);
+  if (!expectedChallenge) return res.status(410).json({ ok: false, code: "challenge-expired" });
 
+  // consume single-use
+    await redis.del(key);
+    // optionally clear the cookie so it can’t be reused
+    res.clearCookie("wa_ctx", ctxCookieOpts(req));
+  
   // Find credential by rawId
   const credIdB64 = authResp.rawId as string;
   const cred = await getCredentialById(credIdB64); // store rawId as base64url in DB to avoid binary hassle
@@ -62,7 +73,7 @@ export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
   
   const verification = await verifyAuthenticationResponse({
     response: authResp,
-    expectedChallenge: challenge,
+    expectedChallenge,
     expectedOrigin: origin,
     expectedRPID: getRpIdFromOrigin(origin),
     credential: {
