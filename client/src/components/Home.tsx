@@ -1,37 +1,26 @@
 // src/pages/Login.tsx
-import {useEffect, useState,useRef  } from "react";
-import {useMediaQuery} from "usehooks-ts"
-import { createSearchParams, useNavigate } from "react-router";
-import { useQR } from "./context/QrContext";
+
+import {useLocation, useNavigate } from "react-router";
 import { useAuth } from "./context/AuthContext";
+import { isLikelyHandheld } from "@/utilities/device";
 
 const Home = () => {
- const isMobileOrTablet=useMediaQuery(`(max-width: 1024px)`)
- const {token}=useQR()
- const authStatus=useAuth()
- const navigate = useNavigate()
-
  
- function navigateTo(){
-     
-     let to=""
+ const {status}=useAuth() // 'authenticated' | 'unauthenticated' | 'loading'
+ const navigate = useNavigate()
+ const { pathname } = useLocation();
 
-     if(isMobileOrTablet){
-      to = authStatus.status==="authenticated" ? `/scan?token=${token}` : "/phone/login"
-     }
-     else
-        to="/qr"
-     
-     return to;
+  // If already authenticated, decide where your app should land
+  if (status === "authenticated") navigate("/chat",{replace:true})
+  
+
+  // Only auto-route from the *home* path
+  else if (status === "unauthenticated" && pathname === "/") {
+    const target = isLikelyHandheld() ? "/phone/login" : "/qr";
+    navigate(target,{replace:true})
   }
-
-
- useEffect(() => {
-    
-    navigate(navigateTo(), { replace: true });
-  }, [isMobileOrTablet, navigate]);
-
-  return null
+ 
+   return null
 };
 
 export default Home;

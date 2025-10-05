@@ -1,5 +1,16 @@
 import { UADataLike } from "../types/uadata";
 import { DeviceInfo } from "../types/deviceInfo";
+import { NavigatorWithUA } from "@/types/uadata";
+
+function hasTouch(): boolean {
+  if (typeof window === "undefined") return false; // SSR guard
+  return (
+    "ontouchstart" in window ||
+    ((navigator as NavigatorWithUA).maxTouchPoints ?? 0) > 0 ||
+    ((navigator as NavigatorWithUA).msMaxTouchPoints ?? 0) > 0
+  );
+}
+
 
 export default function getDeviceInfoSync(): DeviceInfo {
   const userAgent = navigator.userAgent;
@@ -20,4 +31,10 @@ export default function getDeviceInfoSync(): DeviceInfo {
       : "Web");
 
   return { name: [platform, brand].filter(Boolean).join(" • "), userAgent, timeZone, mobile: uaData?.mobile };
+}
+
+
+export function isLikelyHandheld(): boolean {
+  const coarse = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+  return hasTouch() || coarse;
 }

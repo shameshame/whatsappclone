@@ -1,21 +1,20 @@
 // src/components/QrScanner.tsx
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
 import { useQR } from "./context/QrContext";
 import { Html5Qrcode} from "html5-qrcode";
 import { loginWithPasskey } from "../utilities/passkeys";
-import getDeviceInfoSync from "../utilities/deviceInfo"
+import getDeviceInfoSync from "../utilities/device"
 
 
 const QrScanner = () => {
 
   const {validate,token,validated}=useQR()
-  const navigate=useNavigate()
+  
   const [devices, setDevices] = useState<{ id: string; label: string }[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [cameraId, setCameraId] = useState<string|null>(null);
   const [error, setError] = useState<string | null>(null);
-  const hasStarted = useRef(false);
+ 
 
 
   //Guards from re-rendering
@@ -26,7 +25,7 @@ const QrScanner = () => {
   const lastText = useRef<string>("");
   const lastAt = useRef(0);
 
-  const deviceInf0 = getDeviceInfoSync()
+  
 
 
 

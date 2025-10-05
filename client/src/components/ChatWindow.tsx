@@ -1,12 +1,10 @@
 import { useState } from "react"
 import type { User } from "@/types/user"
-import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Drawer, DrawerTrigger, DrawerContent } from '@/components/ui/drawer';
 import { Button } from "@/components/ui/button"
 import { Avatar,AvatarImage} from "@/components/ui/avatar"
 import { ChatSearch } from "./ChatSearch";
-import { Send, Search,VideoIcon,VideoOffIcon,ChevronDown,MoreVertical  } from "lucide-react"
+import { Send,VideoIcon,ChevronDown,MoreVertical  } from "lucide-react"
 import MessageBubble from "./MessageBubble"
 
 
@@ -56,10 +54,6 @@ export default function ChatWindow(){
       setInput("")
     }
   }
-
-
-
-
 
   return(<div className="flex-1 bg-[#f7f1ea] flex flex-col  h-screen">
         <div className="flex justify-between items-center bg-white p-4 shadow-sm ">

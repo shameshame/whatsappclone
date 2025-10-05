@@ -4,3 +4,9 @@ export type UADataLike = {
   mobile?: boolean;
   getHighEntropyValues?: (hints: string[]) => Promise<Record<string, unknown>>;
 };
+
+
+export type NavigatorWithUA = Navigator & {
+  userAgentData?: UADataLike;
+  msMaxTouchPoints?: number; // legacy IE/old Edge
+};

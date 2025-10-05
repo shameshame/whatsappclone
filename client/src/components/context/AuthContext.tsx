@@ -1,6 +1,6 @@
 import { AuthStatus } from "@/types/authContext";
 import { ReactNode,createContext, useContext, useState,useEffect, useCallback, useMemo, useRef } from "react";
-import { useNavigate } from "react-router";
+
 
 
 const AuthContext = createContext<AuthStatus>({status:"unauthenticated",user:undefined,device:undefined})
@@ -13,10 +13,9 @@ export const useAuth = () => {
   return authStatus;
 };
 
-export function AuthProvider({children}: {children: React.ReactNode;}){
+export function AuthProvider({children}: {children: ReactNode;}){
 
    const [auth,setAuth]=useState<AuthStatus>({status:"",user:"",device:""})
-   const navigate=useNavigate()
 
    // run once on app load to decide if “phone is logged in”
 useEffect(() => {
@@ -31,14 +30,12 @@ useEffect(() => {
     } catch {
       // not logged in – show registration/login flow
       setAuth({...auth, status: "unauthenticated" });
-      navigate("/phone/login",{replace:true})
+      
     }
   })();
 }, [])
 
-return (<AuthContext.Provider value={auth}>{children}</AuthContext.Provider>
-        
-       )
+return (<AuthContext.Provider value={auth}>{children}</AuthContext.Provider>)
 
 
 

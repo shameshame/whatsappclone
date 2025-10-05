@@ -1,12 +1,13 @@
 import {BrowserRouter,Routes,Route} from "react-router"
 import ChatWindow from './components/ChatWindow'
-import Login from "./components/Login";
 import { QrProvider } from "./components/context/QrContext";
 import QRGenerator from "./components/QRGenerator";
 import ScanPage from "./components/ScanPage";
 import CreateAccount from "./components/CreateAccount"
 import { AuthProvider } from "./components/context/AuthContext";
 import LoginPasskey from "./components/LoginPassKey";
+import Home from "./components/Home";
+import Protected from "./components/Protected";
 
 
 
@@ -20,11 +21,12 @@ function App() {
      <BrowserRouter>
         <AuthProvider>
           <Routes>
+            <Route path="/" element={<Home/>}/>
             <Route path="/register" element={<CreateAccount/>} />
             <Route path="/phone/login" element={<LoginPasskey/>} />
-            <Route path="/scan" element={<QrProvider><ScanPage/></QrProvider>} />
+            <Route path="/scan" element={<Protected><QrProvider> <ScanPage/> </QrProvider></Protected>} />
             <Route path="/qr" element={<QrProvider><QRGenerator/></QrProvider>} />
-            <Route path="/chat" element={<ChatWindow/>}/>
+            <Route path="/chat" element={<Protected><ChatWindow/></Protected>}/>
           </Routes>
         </AuthProvider>
       </BrowserRouter>
