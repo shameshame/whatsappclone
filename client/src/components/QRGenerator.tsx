@@ -1,10 +1,15 @@
 import {useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
 import { useNavigate } from "react-router";
 import { io, Socket } from "socket.io-client";
 import { useQR } from "./context/QrContext";
 import {QRCodeSVG} from "qrcode.react";
 import {RefreshCw, RotateCw} from "lucide-react"
+import { postJSON } from "@/utilities/passkeys";
+import { LoginVerifyOK } from "@/types/loginVerifyOk";
+import { isSessionId,isAuthCode } from "@/utilities/session";
+import { Banner } from "./Banner";
+import { BannerData } from "@/utilities/banner-map";
+import { Processing } from "./Processing";
 
 
 
@@ -22,10 +27,13 @@ export default function QRGenerator(){
   const [currentToken, setCurrentToken]   = useState(token);
   const [incomingToken, setIncomingToken] = useState<string | null>(null);
   const [fading,setFading]=useState(false)
+
+  const [banner,setBanner]=useState<BannerData>()
   
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const frame = useRef<number | null>(null);
-
+  
+  const exchangingRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
   const currentTokenRef = useRef<string | null>(null);  // ← always latest
   const joinedWithRef = useRef<string | null>(null);    // ← what we emitted
@@ -71,10 +79,30 @@ const onRefresh = async () => {
 useEffect(() => {
     const socket = io({ path: "/socket.io",withCredentials:true }); // goes via Vite proxy
     socketRef.current = socket;
+
+    const onSessionApproved = async ({ sessionId, authCode }:{sessionId:string,authCode:string}) => {
+            const invalidInput = !isSessionId(sessionId) || !isAuthCode(authCode)
+            const isDifferentSession= joinedWithRef.current && sessionId !== joinedWithRef.current
+        
+            if (invalidInput || isDifferentSession || exchangingRef.current) return;
+            exchangingRef.current = true;
+      
+          try {
+            await postJSON<LoginVerifyOK>("/api/session/exchange", { sessionId, authCode });
+            // cookies are now set in the desktop browser
+            navigate("/chat", { replace: true });
+          } catch (error) {
+             exchangingRef.current = false;
+             console.error("exchange failed", error);
+          }
+    };
+
+  
     
     const onValidated = ({ sessionId }: { sessionId: string }) => {
       console.log("[client] session-validated", { sessionId,currentTokenRef: currentTokenRef.current,joinedWith: joinedWithRef.current, });
-      if (sessionId === joinedWithRef.current) navigate("/chat", { replace: true });
+      if (sessionId === joinedWithRef.current) 
+        return <Processing msg="Approved on phone. Finalizing…"/>
     };
 
     const onExpired=({ sessionId }: { sessionId: string }) => {
@@ -91,10 +119,12 @@ useEffect(() => {
     socket.on("reconnect_attempt", (n) => console.log("[client] reconnect_attempt", n));
     socket.on("session-validated", onValidated);
     socket.on("session-expired",onExpired)
+    socket.on("session-approved",onSessionApproved)
 
     return () => {
       socket.off("session-validated", onValidated);
       socket.off("session-expired",onExpired)
+      socket.off("session-approved",onSessionApproved)
       socket.disconnect();
     };
   }, [navigate]);

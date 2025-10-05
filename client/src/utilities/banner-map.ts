@@ -1,7 +1,7 @@
 // src/lib/banner-map.ts
 import type { AppError } from "@/types/errors";
 
-export type BannerVariant = "default" | "warning" | "success" | "destructive";
+export type BannerVariant = "default" | "warning" | "success" | "destructive" | "info";
 
 export type BannerData ={
   msg: string;

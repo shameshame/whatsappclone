@@ -81,11 +81,7 @@ const onScanSuccess = async (decoded: string) => {
           // 1st attempt: validate using existing cookies
           let response = await validate({ sessionId, challenge, deviceInfo});
 
-          // If phone isn’t authenticated yet, do passkey login and retry once
-          if (response.status === 401) {
-            await loginWithPasskey(); // sets cookies on success
-            response = await validate({ sessionId, challenge, deviceInfo });
-          }
+          
         
           if (response.ok) {
             gotResult.current = true;

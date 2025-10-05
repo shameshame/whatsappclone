@@ -9,6 +9,7 @@ import { createAuthCode,takeAuthCode } from "../utils/auth";
 import { issueAppSession } from "../services/auth.session.service";
 import { setSessionCookie } from "../utils/cookies";
 import { requireAuth } from "../middleware/requireAuth";
+import { redis } from "../redis";
 
 export const sessionRouter = Router();
 
@@ -53,6 +54,9 @@ sessionRouter.post("/validate", async (req, res) => {
 
   if (socketId) {
     io.to(socketId).emit("session-approved", { sessionId, authCode });
+    
+    // Optional: mark the pairing record as "approved"
+    await redis.hSet(`pair:${sessionId}`, { status: "approved" });
   }
 
    await consumeAndExpire(io,sessionId, "used");

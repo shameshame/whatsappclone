@@ -99,6 +99,7 @@ export async function consumeAndExpire(io: SocketIOServer, sessionId: string, re
   const socketId = await redis.hGet(k, "socketId");
   if (socketId) {
     io.to(socketId).emit("session-expired", { sessionId, reason });
+    
   }
   await redis.del(k);
 }
