@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState,useEffect, useCallback, useMemo, useRef } from "react";
 import {QRContextType} from "@/types/qrcontext"
 import { useSearchParams,useLocation } from "react-router";
-import { DeviceInfo } from "@/types/deviceInfo";
+import { DeviceInfo } from "@/types/device";
 
 
 

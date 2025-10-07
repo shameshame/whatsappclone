@@ -1,13 +1,8 @@
 // src/lib/error-utils.ts
-import type { AppError } from "@/types/errors";
+import type { AppError,HttpAppError } from "@/types/errors";
 
-const isError = (error: unknown): error is Error =>
-  typeof error === "object" && error !== null && "name" in error && "message" in error;
 
-const isDOMException = (error: unknown): error is DOMException =>
-  typeof DOMException !== "undefined" && error instanceof DOMException;
-
-export async function httpErrorFromResponse(res: Response): Promise<AppError> {
+export async function httpErrorFromResponse(res: Response): Promise<HttpAppError> {
   let code: string | undefined;
   let message: string | undefined;
   try {
@@ -25,8 +20,15 @@ export async function httpErrorFromResponse(res: Response): Promise<AppError> {
 }
 
 export function toAppError(error: unknown): AppError {
+  // Normalize already-normalized HTTP errors
+  if (typeof error === "object" && error !== null && (error as any).kind === "http") {
+    return error as HttpAppError;
+  }
+  
+  
+  
   // WebAuthn / DOM paths
-  if (isDOMException(error)) {
+  if (error instanceof DOMException) {
     switch (error.name) {
       case "NotAllowedError":
       case "AbortError":
@@ -42,8 +44,7 @@ export function toAppError(error: unknown): AppError {
   }
 
   // Regular Error (fetch/network/parsing/etc.)
-  if (isError(error)) {
-    // Undici/Fetch often throws TypeError on network issues
+  if (error instanceof Error) {
     if (error.name === "TypeError") {
       return { kind: "network", message: "Network error. Check your connection.", cause: error };
     }

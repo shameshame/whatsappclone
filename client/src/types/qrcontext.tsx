@@ -1,4 +1,4 @@
-import { DeviceInfo } from "./deviceInfo";
+import { DeviceInfo } from "./device";
 
 
 export type QRContextType = {

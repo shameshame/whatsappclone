@@ -1,6 +1,9 @@
 import { UADataLike } from "../types/uadata";
-import { DeviceInfo } from "../types/deviceInfo";
+import { DeviceInfo } from "../types/device";
 import { NavigatorWithUA } from "@/types/uadata";
+
+
+export type Platform = "iOS" | "Android" | "Windows" | "macOS" | "Linux" | "Web";
 
 function hasTouch(): boolean {
   if (typeof window === "undefined") return false; // SSR guard
@@ -9,6 +12,31 @@ function hasTouch(): boolean {
     ((navigator as NavigatorWithUA).maxTouchPoints ?? 0) > 0 ||
     ((navigator as NavigatorWithUA).msMaxTouchPoints ?? 0) > 0
   );
+}
+
+
+export function getDevicePlatform(
+  uaData?: UADataLike,
+  userAgent?: string
+): Platform {
+  if (uaData?.platform) {
+    // Normalize common UA-CH platforms
+    const p = uaData.platform.toLowerCase();
+    if (p.includes("android")) return "Android";
+    if (p.includes("ios")) return "iOS";
+    if (p.includes("mac")) return "macOS";
+    if (p.includes("win")) return "Windows";
+    if (p.includes("linux")) return "Linux";
+    return "Web";
+  }
+
+  const ua = (userAgent || "").toLowerCase();
+  if (/android/.test(ua)) return "Android";
+  if (/iphone|ipad|ipod/.test(ua)) return "iOS";
+  if (/mac os x|macintosh/.test(ua)) return "macOS";
+  if (/windows/.test(ua)) return "Windows";
+  if (/linux/.test(ua)) return "Linux";
+  return "Web";
 }
 
 
@@ -21,16 +49,16 @@ export default function getDeviceInfoSync(): DeviceInfo {
              ?? uaData?.brands?.[0]?.brand
              ?? "";
 
-  const platform =
-    uaData?.platform
-    ?? (/Android/i.test(userAgent) ? "Android"
-      : /iPhone|iPad|iPod/i.test(userAgent) ? "iOS"
-      : /Windows/i.test(userAgent) ? "Windows"
-      : /Mac OS X|Macintosh/i.test(userAgent) ? "macOS"
-      : /Linux/i.test(userAgent) ? "Linux"
-      : "Web");
+  const platform = getDevicePlatform(uaData,userAgent)
 
   return { name: [platform, brand].filter(Boolean).join(" • "), userAgent, timeZone, mobile: uaData?.mobile };
+}
+
+export function getIsMobile(uaData?: UADataLike, userAgent?: string): boolean {
+  if (typeof uaData?.mobile === "boolean") return uaData.mobile;
+  
+  const ua = (userAgent || "").toLowerCase();
+  return /\b(iphone|ipad|ipod|android)\b/.test(ua);
 }
 
 
