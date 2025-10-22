@@ -6,6 +6,7 @@ import { Avatar,AvatarImage} from "@/components/ui/avatar"
 import { ChatSearch } from "./ChatSearch";
 import { Send,VideoIcon,ChevronDown,MoreVertical  } from "lucide-react"
 import MessageBubble from "./MessageBubble"
+import { ChatHeader } from "./ChatHeader"
 
 
 interface Message {
@@ -69,7 +70,7 @@ export default function ChatWindow(){
            
             <ChatSearch  messages={messages}/>
             
-            <MoreVertical/>
+           <ChatHeader/>
           </div>
         </div>
        

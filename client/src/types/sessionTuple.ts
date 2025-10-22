@@ -1,0 +1,1 @@
+export type SessionTuple = { sid: string; challenge: string,ttl?:number };

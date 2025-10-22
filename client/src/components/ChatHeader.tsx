@@ -10,22 +10,18 @@ import {
 import { MonitorSmartphone, MoreVertical, Settings, Users } from "lucide-react";
 import { Button } from "./ui/button";
 import { useNavigate } from "react-router";
+import { useState } from "react";
 
-type Device = {
-  id: string;
-  name?: string | null;            // e.g. "iPhone 14", "MacBook Pro"
-  platform?: string | null;        // e.g. "iOS", "Android", "Windows", "macOS"
-  browser?: string | null;         // e.g. "Safari", "Chrome"
-  lastSeenISO?: string | null;     // ISO string
-  current?: boolean;               // current browser/device
-};
 
-type DevicesResponse = { devices: Device[] };
 
-function ChatSubMenu(){
 
-    const navigate=useNavigate()
+export function ChatHeader(){
 
+  const navigate=useNavigate()
+    
+  const [devicesOpen, setDevicesOpen] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [groupName, setGroupName] = useState("");
     
 
 
@@ -45,7 +41,7 @@ function ChatSubMenu(){
 
         <DropdownMenuContent align="end" className="w-56">
           
-          <DropdownMenuItem onSelect={() => setDevicesOpen(true)}>
+          <DropdownMenuItem onSelect={() => navigate("/phone/devices")}>
             <MonitorSmartphone className="mr-2 h-4 w-4" />
             <span>Connected devices</span>
           </DropdownMenuItem>

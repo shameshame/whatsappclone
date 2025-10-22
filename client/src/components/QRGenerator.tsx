@@ -10,7 +10,8 @@ import { isSessionId,isAuthCode } from "@/utilities/session";
 import { Banner } from "./Banner";
 import { BannerData } from "@/utilities/banner-map";
 import { Processing } from "./Processing";
-
+import { SpinnerCustom } from "./ui/spinner";
+import { SessionTuple } from "@/types/sessionTuple";
 
 
 export default function QRGenerator(){
@@ -18,13 +19,14 @@ export default function QRGenerator(){
   
   
 //  Token context data
-  const {token,createSessionToken,ttl} = useQR() 
+  const {session,createSessionToken} = useQR() 
+  const {sid,ttl,challenge}=session as SessionTuple
   
   const navigate = useNavigate();
   const [expired, setExpired] = useState(false);
   
   // Local token states
-  const [currentToken, setCurrentToken]   = useState(token);
+  const [currentToken, setCurrentToken]   = useState(sid);
   const [incomingToken, setIncomingToken] = useState<string | null>(null);
   const [fading,setFading]=useState(false)
 
@@ -194,11 +196,14 @@ useEffect(() => {
   
 
 const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const scanUrl = (token: string) => `${origin}/scan?token=${encodeURIComponent(token)}`;
+  const scanUrl = (token: string) => `${origin}/scan?sessionId=${encodeURIComponent(token)}`;
 
 
 
 return(<div className="relative inline-block rounded-xl shadow-sm" style={{ width: 300, height: 300, margin:"auto auto", background: "#fff" }}>
+         
+         
+      {!token && <SpinnerCustom/>}  
          {/* CURRENT QR — fades out when we flip `current` */}
       {!expired &&<> <QRCodeSVG
         key={`cur-${currentToken}`}

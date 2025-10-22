@@ -8,6 +8,7 @@ import { AuthProvider } from "./components/context/AuthContext";
 import LoginPasskey from "./components/LoginPassKey";
 import Home from "./components/Home";
 import Protected from "./components/Protected";
+import { ConnectedDevices } from "./components/ConnectedDevices";
 
 
 
@@ -24,6 +25,7 @@ function App() {
             <Route path="/" element={<Home/>}/>
             <Route path="/register" element={<CreateAccount/>} />
             <Route path="/phone/login" element={<LoginPasskey/>} />
+            <Route path="/phone/devices" element={<ConnectedDevices/>}/>
             <Route path="/scan" element={<Protected><QrProvider> <ScanPage/> </QrProvider></Protected>} />
             <Route path="/qr" element={<QrProvider><QRGenerator/></QrProvider>} />
             <Route path="/chat" element={<Protected><ChatWindow/></Protected>}/>

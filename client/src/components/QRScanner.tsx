@@ -1,14 +1,14 @@
 // src/components/QrScanner.tsx
 import { useEffect, useRef, useState } from "react";
 import { useQR } from "./context/QrContext";
-import { Html5Qrcode} from "html5-qrcode";
+import { Html5Qrcode,Html5QrcodeSupportedFormats, Html5QrcodeScanType} from "html5-qrcode";
 import { loginWithPasskey } from "../utilities/passkeys";
 import getDeviceInfoSync from "../utilities/device"
 
 
 const QrScanner = () => {
 
-  const {validate,token,validated}=useQR()
+  const {validate,session,validated}=useQR()
   
   const [devices, setDevices] = useState<{ id: string; label: string }[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
@@ -33,6 +33,7 @@ const QrScanner = () => {
  const extractSessionId = (decoded: string)=>{
    const text = decoded.trim();
 
+   console.log("Decoded",text)
 
   try {
     const url = new URL(text, window.location.origin);
@@ -71,6 +72,8 @@ const onScanSuccess = async (decoded: string) => {
       if (gotResult.current || inFlight.current) return;
       inFlight.current = true;
 
+     
+
       // extract token if you encoded a URL
       try {
           const { sessionId, challenge } = extractSessionId(decoded);
@@ -107,12 +110,25 @@ const onScanSuccess = async (decoded: string) => {
 
     if (started.current) return;         // avoid StrictMode double init
     started.current = true;
+
+    const el = document.getElementById("qr-reader");
+  if (!el) return;
+
+  // Wait one frame so width/height above are computed
+  await new Promise(requestAnimationFrame);
+  const box = el.getBoundingClientRect();
+  // pick a qrbox that fits the container
+  const size = Math.floor(Math.min(box.width, box.height) * 0.9);
+  // setLogs(l => [...l, `container: ${box.width}x${box.height}`]);
     
     scannerRef.current = new Html5Qrcode("qr-reader");
+     
 
    scannerRef.current
       .start(cameraId,
-        { fps: 10,qrbox: { width: 250, height: 250 }, },
+        { fps: 10,qrbox: { width: size, height: size }, 
+          
+        },
         onScanSuccess,
         (err) => setLogs(l => [...l, `❌ start() error: ${err}`])
       )
@@ -154,9 +170,9 @@ const onScanSuccess = async (decoded: string) => {
   }
 
   return <div className="flex flex-col items-center justify-center  bg-gray-100">
-      <div  id="qr-reader" className="w-full max-w-xs" />
+      <div  id="qr-reader" className="rounded-xl overflow-hidden w-[90svw] max-w-[640px] aspect-square"  />
            <div className="mt-4 p-2 bg-gray-100 h-32 overflow-auto">
-           {token && <p>ExpectedData: {token}</p>}
+         <p>Decoded token:{token}</p>  
         <strong>Logs:</strong>
         {logs.map((msg, i) => <div key={i}>{msg}</div>)}
         

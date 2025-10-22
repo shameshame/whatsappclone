@@ -3,16 +3,18 @@ import React, { createContext, useContext, useState,useEffect, useCallback, useM
 import {QRContextType} from "@/types/qrcontext"
 import { useSearchParams,useLocation } from "react-router";
 import { DeviceInfo } from "@/types/device";
+import { SessionTuple } from "@/types/sessionTuple";
 
 
 
 const QrContext = 
 createContext<QRContextType>(
                              {
-                              token:null,validated:false,ttl:-2,
+                              validated:false,
+                              session:{sid:"",challenge:"",ttl:-2},
                               error:null,
                               validate:async (payload:{ sessionId:string, challenge:string, deviceInfo:DeviceInfo}) => new Response(null, { status: 204, statusText: 'No Content' }),
-                              createSessionToken:async()=>{return ""}
+                              createSessionToken:async()=>{return null}
                              }
                             );
 export const useQR = () => {
@@ -26,50 +28,54 @@ export const useQR = () => {
 export function QrProvider({children}: {children: React.ReactNode;}) {
 
   const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
-  const [token, setToken]= useState<string | null>(null);
-  const [ttl, setTtl] = useState<number>(0);
+  const [session,setSession]=useState<SessionTuple | null>(null)
   const [params]=useSearchParams()
   const {pathname}=useLocation()
-  const urlToken=params.get("token")
+  const urlSid=params.get("token")
+  const urlChallenge=params.get("challenge")
   const [validated, setValidated] = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const alreadyCreated = useRef(false);
 
 
   let currentController: AbortController | null = null;
-  let sidToReturnImmediately=""
+  
 
  async function  createSessionToken(){
-     console.log("session already created",alreadyCreated)
+    
 
       // if (alreadyCreated.current) return;        // guard Strict Mode double-mount
       //  alreadyCreated.current = true;
-  
-  
-     if(!urlToken){
-      if (pathname.startsWith("/qr")) {
+
+      // 1) If URL already has both → use them
+    if (urlSid && urlChallenge) {
+      setSession({sid:urlSid,challenge:urlChallenge})
+      return { sid: urlSid, challenge: urlChallenge };
+    }
+
+    let sidToReturnImmediately="",challengeToReturnImmediately=""
+    
+    if (pathname.startsWith("/qr")) {
         try{
           currentController?.abort();          // cancel any prior one
           currentController = new AbortController();
           const signal = currentController.signal;
           const result = await fetch(`${API_BASE}/session`,{method: "POST",signal})
-          const{ sessionId, ttl }= await result.json()
+          const{ sessionId,challenge, ttl }= await result.json()
           sidToReturnImmediately=sessionId
-          setToken(sessionId);
-          setTtl(ttl);
+          challengeToReturnImmediately=challenge
+          
+          setSession({sid:sessionId,ttl,challenge})
 
         }catch(error){
           setError("Could not create session")
-     }
-      }
+        }
     }
 
-    else{
-      setToken(urlToken)
-    }
-
-    return urlToken|| sidToReturnImmediately
-     
+    const sid = (urlSid ?? sidToReturnImmediately) || null;
+    const challenge = (urlChallenge ?? challengeToReturnImmediately) || null;
+    return sid && challenge ? { sid, challenge } : null;
+    
  }
 
  const validate= useCallback(async (payload: { sessionId: string; challenge: string; deviceInfo?: DeviceInfo }): Promise<Response> =>{
@@ -87,15 +93,15 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
   useEffect(()=>{
       createSessionToken()
       return () => currentController?.abort()
-  },[urlToken,pathname])
+  },[urlSid,pathname])
   
   
-  const ctx = useMemo(() => ({ token, validated, error, validate,ttl,createSessionToken }),
-                    [token, validated, error, validate,ttl]);
+  const ctx = useMemo(() => ({session,validated, error, validate,createSessionToken}),
+                    [validated, error, validate,session]);
   
   return (
     <QrContext.Provider value={ctx}>
-       {token ? children : <p>Generating session…</p>}
+       {children}
     </QrContext.Provider>
   );
 }
