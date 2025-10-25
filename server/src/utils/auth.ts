@@ -12,7 +12,7 @@ export const authCodeKey = (sessionId: string, code: string) => `auth:${sessionI
 export async function createAuthCode(payload: Omit<AuthCodePayload, "issuedAt">, ttlSec = 60) {
   const code = randomBytes(32).toString("base64url");
   const value = JSON.stringify({ ...payload, issuedAt: Date.now() });
-  const ok =await redis.set(authCodeKey(code,payload.sessionId as string), value, { EX: ttlSec, NX: true });
+  const ok =await redis.set(authCodeKey(payload.sessionId as string,code), value, { EX: ttlSec, NX: true });
   
   if (!ok) throw new Error("authcode-collision");
   

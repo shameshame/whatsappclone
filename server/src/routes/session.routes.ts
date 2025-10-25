@@ -7,7 +7,7 @@ import {
 } from "../services/session.service";
 import { createAuthCode,takeAuthCode } from "../utils/auth";
 import { issueAppSession } from "../services/auth.session.service";
-import { setSessionCookie } from "../utils/cookies";
+import { setCookie } from "../utils/cookies";
 import { requireAuth } from "../middleware/requireAuth";
 import { redis } from "../redis";
 
@@ -31,12 +31,12 @@ sessionRouter.post("/", async (_req, res) => {
 });
 
 // POST /api/session/validate  → mobile hit
-sessionRouter.post("/validate", async (req, res) => {
+sessionRouter.post("/validate", requireAuth, async (req, res) => {
   
-  const userId = req.body.user?.id; // <- ensure your auth middleware sets this
+  const userId = (req as any).user?.id;
   if (!userId) return res.status(401).json({ ok: false, message: "Unauthorized" });
   
-  const { sessionId,challenge,deviceInfo } = req.body ?? {}
+  const { sessionId,challenge,deviceInfo } = (req.body?.payload ?? req.body ?? {});
   if (!sessionId || !challenge) return res.status(400).json({ ok: false, message: "Missing fields" });
 
   const status = await approveIfValid(sessionId,challenge);
@@ -72,11 +72,9 @@ sessionRouter.post("/exchange",async (req, res) => {
   const data = await takeAuthCode(sessionId,authCode); // { userId, sessionId?: string, deviceInfo?: any } | null
   if (!data) return res.status(410).json({ ok: false, message: "authCode-expired-or-used" });
 
-  
-
   // Mint an opaque Redis-backed session and set it as HttpOnly cookie
   const sid = await issueAppSession(data.userId, data.deviceInfo);
-  setSessionCookie(res, sid); // HttpOnly; Secure; SameSite=Strict; Path=/
+  setCookie(req,res,"sid",sid)
 
   return res.json({ ok: true });
 })

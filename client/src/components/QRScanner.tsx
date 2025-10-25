@@ -72,9 +72,7 @@ const onScanSuccess = async (decoded: string) => {
       if (gotResult.current || inFlight.current) return;
       inFlight.current = true;
 
-     
-
-      // extract token if you encoded a URL
+     // extract token if you encoded a URL
       try {
           const { sessionId, challenge } = extractSessionId(decoded);
           if (!sessionId || !challenge) throw new Error("Invalid QR payload");
@@ -84,8 +82,6 @@ const onScanSuccess = async (decoded: string) => {
           // 1st attempt: validate using existing cookies
           let response = await validate({ sessionId, challenge, deviceInfo});
 
-          
-        
           if (response.ok) {
             gotResult.current = true;
             teardown()
@@ -96,7 +92,7 @@ const onScanSuccess = async (decoded: string) => {
           inFlight.current = false;
         }
 
-      }
+  }
 
 
 
@@ -172,7 +168,7 @@ const onScanSuccess = async (decoded: string) => {
   return <div className="flex flex-col items-center justify-center  bg-gray-100">
       <div  id="qr-reader" className="rounded-xl overflow-hidden w-[90svw] max-w-[640px] aspect-square"  />
            <div className="mt-4 p-2 bg-gray-100 h-32 overflow-auto">
-         <p>Decoded token:{token}</p>  
+         <p>Decoded token:{session?.sid}</p>  
         <strong>Logs:</strong>
         {logs.map((msg, i) => <div key={i}>{msg}</div>)}
         

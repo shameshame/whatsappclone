@@ -7,7 +7,6 @@ import {RefreshCw, RotateCw} from "lucide-react"
 import { postJSON } from "@/utilities/passkeys";
 import { LoginVerifyOK } from "@/types/loginVerifyOk";
 import { isSessionId,isAuthCode } from "@/utilities/session";
-import { Banner } from "./Banner";
 import { BannerData } from "@/utilities/banner-map";
 import { Processing } from "./Processing";
 import { SpinnerCustom } from "./ui/spinner";
@@ -20,15 +19,17 @@ export default function QRGenerator(){
   
 //  Token context data
   const {session,createSessionToken} = useQR() 
-  const {sid,ttl,challenge}=session as SessionTuple
+  // const {sid,ttl,challenge}=session as SessionTuple
   
   const navigate = useNavigate();
   const [expired, setExpired] = useState(false);
   
   // Local token states
-  const [currentToken, setCurrentToken]   = useState(sid);
-  const [incomingToken, setIncomingToken] = useState<string | null>(null);
+  const [currentSession, setCurrentSession]   = useState<SessionTuple |null>(session);
+  const [incomingSession, setIncomingSession] = useState<SessionTuple | null>();
+  const [processing, setProcessing] = useState(false);
   const [fading,setFading]=useState(false)
+  const active = incomingSession ?? currentSession ?? session;
 
   const [banner,setBanner]=useState<BannerData>()
   
@@ -45,10 +46,10 @@ export default function QRGenerator(){
 
 const regenerate = async()=>{
   alreadyJoined.current=false;
-  let nextToken =await createSessionToken()
+  let nextSession =await createSessionToken()
   setExpired(false);
 
-  return nextToken
+  return nextSession
 }
 
 const onRefresh = async () => {
@@ -57,17 +58,17 @@ const onRefresh = async () => {
     setFading(true); // show full overlay
 
     // 1) request a fresh token
-     let nextToken= await regenerate();
-    setIncomingToken(nextToken);
+     let nextSession= await regenerate();
+    setIncomingSession(nextSession);
 
     // 2) one animation frame later, start the cross-fade
     frame.current = requestAnimationFrame(() => {
       // fade/scale swap driven by Tailwind classes below
-      setCurrentToken(nextToken);
+      setCurrentSession(nextSession);
 
       // 3) after the transition, clean up overlay state
       setTimeout(() => {
-        setIncomingToken(null);
+        setIncomingSession(null);
         setIsRefreshing(false);
         setFading(false);     // hide overlay
       }, 320); // just over duration-300
@@ -104,11 +105,11 @@ useEffect(() => {
     const onValidated = ({ sessionId }: { sessionId: string }) => {
       console.log("[client] session-validated", { sessionId,currentTokenRef: currentTokenRef.current,joinedWith: joinedWithRef.current, });
       if (sessionId === joinedWithRef.current) 
-        return <Processing msg="Approved on phone. Finalizing…"/>
+        if (sessionId === joinedWithRef.current) setProcessing(true);
     };
 
     const onExpired=({ sessionId }: { sessionId: string }) => {
-      if (sessionId !== token) return;
+      if (sessionId !== session?.sid) return;
       setExpired(true);     
     }
 
@@ -131,18 +132,28 @@ useEffect(() => {
     };
   }, [navigate]);
 
+//Initialize current session
+ useEffect(() => {
+  if (session && (!currentSession || currentSession.sid !== session.sid)) {
+    setCurrentSession(session);
+    setExpired(false);
+  }
+}, [session]);
+
+
+
   // 2) Emit join when we HAVE the token (and on reconnect)
   useEffect(() => {
     const socket = socketRef.current;
-    if (!token || !socket) return;
+    if (!session?.sid || !socket) return;
 
     const tryJoin = () => {
       if (alreadyJoined.current) return;
       alreadyJoined.current = true;
 
-      joinedWithRef.current = token
-      console.log("[client] emitting join-session with token", token);
-      socket.emit("join-session", { sessionId: token });
+      joinedWithRef.current = session?.sid
+      console.log("[client] emitting join-session with token", session?.sid);
+      socket.emit("join-session", { sessionId: session?.sid });
     };
 
     //Race-proof way to emit join-session exactly once when the socket is connected
@@ -160,16 +171,16 @@ useEffect(() => {
     return () => {
       socket.off("reconnect", onReconnect);
     };
-  }, [token]);
+  }, [session?.sid]);
 
   // 3) Fallback: check status in case phone validated earlier
   useEffect(() => {
-    if (!token) return;
+    if (!session?.sid) return;
     
     
     (async () => {
       try {
-        const response = await fetch(`${API_BASE}/session/${token}/status`);
+        const response = await fetch(`${API_BASE}/session/${session?.sid}/status`);
         const { status } = await response.json();
         console.log(status)
         if (status === "validated" || status === "used") {
@@ -178,36 +189,39 @@ useEffect(() => {
         }
       } catch {}
     })();
-  }, [token, navigate]);
+  }, [session?.sid, navigate]);
 
    // Local fallback: expire after TTL if server event is missed
   useEffect(() => {
-    if (!ttl || !token) return;
+    if (!active?.ttl || !active?.sid) return;
     setExpired(false);
-    const elapse = setTimeout(() => setExpired(true), ttl * 1000);
+    const elapse = setTimeout(() => setExpired(true), active?.ttl * 1000);
     return () => clearTimeout(elapse);
-  }, [ttl, token]);
+  }, [active?.ttl, active?.sid]);
 
 
   useEffect(() => {
-    currentTokenRef.current = token ?? null;
-  }, [token]);
+    currentTokenRef.current = session?.sid ?? null;
+  }, [session?.sid]);
 
   
 
 const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const scanUrl = (token: string) => `${origin}/scan?sessionId=${encodeURIComponent(token)}`;
+  const scanUrl = (sid: string,challenge:string) => 
+  `${origin}/scan?sessionId=${encodeURIComponent(sid)}&challenge=${encodeURIComponent(challenge)}`;
 
 
 
 return(<div className="relative inline-block rounded-xl shadow-sm" style={{ width: 300, height: 300, margin:"auto auto", background: "#fff" }}>
          
          
-      {!token && <SpinnerCustom/>}  
+      {!session && <SpinnerCustom/>} 
+      {processing && <Processing msg="Approved on phone. Finalizing…" />}
+         
          {/* CURRENT QR — fades out when we flip `current` */}
-      {!expired &&<> <QRCodeSVG
-        key={`cur-${currentToken}`}
-        value={scanUrl(currentToken as string)}
+      {active  && !expired &&<> <QRCodeSVG
+        key={`cur-${active.sid}`}
+        value={scanUrl(active.sid as string,active.challenge as string)}
         size={300}
         level="M"
         className="
@@ -219,17 +233,17 @@ return(<div className="relative inline-block rounded-xl shadow-sm" style={{ widt
           data-[fading=true]:transition-none
         "
         // mark as fading while a newer code is staged
-        data-fading={incomingToken ? "true" : "false"}
+        data-fading={incomingSession ? "true" : "false"}
       />
-      <small className="block mt-2 text-xs text-gray-500">Initial sessionId: {token}</small>
+      <small className="block mt-2 text-xs text-gray-500">Initial sessionId: {session?.sid}</small>
       </>
       }    
       
       {/* INCOMING QR — staged briefly to fade in */}
-      {incomingToken && (<>
+      {incomingSession && (<>
         <QRCodeSVG
-          key={`next-${incomingToken}`}
-          value={scanUrl(incomingToken as string)}
+          key={`next-${active?.sid}`}
+          value={scanUrl(active?.sid as string,active?.challenge as string)}
           size={300}
           level="M"
           className="
@@ -240,7 +254,7 @@ return(<div className="relative inline-block rounded-xl shadow-sm" style={{ widt
           "
           data-show="true"
         />
-        <small className="block mt-2 text-xs text-gray-500">sessionId after refresh: {token}</small>
+        <small className="block mt-2 text-xs text-gray-500">sessionId after refresh: {session?.sid}</small>
         </>
       )}
 

@@ -2,6 +2,11 @@
 import type {Request, Response } from "express";
 import type { CookieOptions } from "express-serve-static-core";
 
+
+
+
+
+
 function isHttps(req:Request) {
   // works behind vite/ngrok/reverse proxies if trust proxy is configured
   return req.secure || req.get("x-forwarded-proto") === "https";
@@ -32,4 +37,8 @@ export function ctxCookieOpts(req:Request): CookieOptions {
     path: "/",
     maxAge: 2 * 60 * 1000, // 2 minutes, aligns with Redis TTL
   };
+}
+
+export function setCookie(req:Request,res:Response,name:string,value:string){
+    res.cookie(name,value,ctxCookieOpts(req))
 }

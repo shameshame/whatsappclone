@@ -82,6 +82,7 @@ export function QrProvider({children}: {children: React.ReactNode;}) {
     
       const result = await fetch(`${API_BASE}/session/validate`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ payload}),
       });

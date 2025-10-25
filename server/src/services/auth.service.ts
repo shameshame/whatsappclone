@@ -5,7 +5,7 @@ import {getUserIdByCredentialId, updateCounter } from "../db/user";
 import type {RequestHandler } from "express";
 import { redis } from "../redis";
 import { issueAppSession, revokeSession } from "./auth.session.service";
-import { ctxCookieOpts, setSessionCookie } from "../utils/cookies";
+import { ctxCookieOpts, setSessionCookie,setCookie } from "../utils/cookies";
 import { getCredentialById } from "../db/credential";
 import { getRpIdFromOrigin,getExpectedOrigin } from "../utils/origin";
 
@@ -89,7 +89,7 @@ export const mapCredentialToUserId : RequestHandler = async(req, res, _next)=>{
   await updateCounter(cred.credentialIdB64, verification.authenticationInfo!.newCounter);
   const userId = await getUserIdByCredentialId(cred.credentialIdB64);
    const sessionId = await issueAppSession(userId);
-  setSessionCookie(res, sessionId);
+  setCookie(req,res, "sid",sessionId);
   res.json({ ok: true });
 
 }
