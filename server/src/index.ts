@@ -5,7 +5,9 @@ import { initRedis} from "./redis";
 import { sessionRouter } from "./routes/session.routes";
 import { authRouter } from "./routes/auth.routes";
 import { registryRouter } from "./routes/registration.routes";
+import { chatRouter } from "./routes/chat.routes";
 import { registerSocket, emitPendingIfAny } from "./services/session.service";
+import { requireSocketAuth } from "./middleware/socketAuth";
 
 
 import cors from "cors";
@@ -17,6 +19,7 @@ const app = express();
 const morgan = require("morgan")
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {path: "/socket.io", cors: { origin: "http://localhost:5173",credentials:true } });
+requireSocketAuth(io)
 
 
 async function main() {
@@ -48,6 +51,7 @@ app.set("io", io);
 app.use("/api/session", sessionRouter);
 app.use("/api/auth",authRouter)
 app.use("/api/registration",registryRouter)
+app.use("/api/chat",chatRouter)
 
 
 // issue a CSRF cookie if it's missing

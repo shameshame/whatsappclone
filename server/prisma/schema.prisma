@@ -39,3 +39,15 @@ model Device {
 
   @@index([userId])
 }
+
+model Message {
+  id        String   @id @default(cuid())
+  chatId    String   // e.g. "dm:<userA>|<userB>" sorted
+  senderId  String   // User.id
+  kind      String   @default("text") // future: "image", "file", etc.
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([chatId, createdAt(sort: Desc)])
+}
+

@@ -25,8 +25,6 @@ export function toAppError(error: unknown): AppError {
     return error as HttpAppError;
   }
   
-  
-  
   // WebAuthn / DOM paths
   if (error instanceof DOMException) {
     switch (error.name) {

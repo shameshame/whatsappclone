@@ -6,28 +6,18 @@ import {decodeGetOptions,postJSON, publicKeyCredentialToJSON} from "@/utilities/
 import { PublicKeyCredentialRequestOptionsJSON } from "@/types/credential";
 import { DEFAULT_LOGIN_PASSKEY_API } from "@/utilities/constants";
 import { bannerFromError } from "@/utilities/banner-map";
-import { httpErrorFromResponse, toAppError } from "@/utilities/error-utils";
+import { toAppError } from "@/utilities/error-utils";
 import { Banner } from "./Banner";
+import { BannerData } from "@/utilities/banner-map";
 import { LoginVerifyOK } from "@/types/loginVerifyOk";
 
+type LoginIntent = "default" | "forcePicker";
 
-
-
-type LoginPasskeyProps = {
-  /** Base path for auth endpoints, e.g. "/api/login" */
-  apiBase?: string;
-  /** Optional callback after successful login (otherwise we navigate to /chat) */
-  onSuccess?: () => void;
-};
-
-export default function LoginPasskey({
- 
-  onSuccess,
-}: LoginPasskeyProps) {
+export default function LoginPasskey() {
   const [supported, setSupported] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [banner, setBanner] = useState<{ msg: string; variant?: "warning"|"destructive"|"success"|"default" }|null>(null);
+  const [banner, setBanner] = useState<BannerData|null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,11 +25,9 @@ export default function LoginPasskey({
     setSupported(ok);
   }, []);
 
-  
-  
   /** Logs the user in with a discoverable passkey (no handle needed). */
   
-  async function loginWithPasskey() {
+  async function loginWithPasskey(intent:LoginIntent) {
   try {
     const { options } = await postJSON<{ options: PublicKeyCredentialRequestOptionsJSON }>(
       `${DEFAULT_LOGIN_PASSKEY_API}/options`,
@@ -50,38 +38,37 @@ export default function LoginPasskey({
 
     const assertion = await navigator.credentials.get({
       publicKey,
-      mediation: "optional" as CredentialMediationRequirement,
+      mediation: (intent === "forcePicker" ? "required" : "optional") as CredentialMediationRequirement,
     }) as PublicKeyCredential | null;
 
     if (!assertion) {
-      const banner = bannerFromError({ kind: "webauthn-cancel", message: "" });
-      setBanner(banner);
+      intent==="forcePicker" ? navigate("/register", { replace: true }) : setBanner(bannerFromError({ kind: "webauthn-cancel", message: "" }))
       return;
     }
 
     const authResp = publicKeyCredentialToJSON(assertion);
     await postJSON<LoginVerifyOK>(`${DEFAULT_LOGIN_PASSKEY_API}/verify`,{ authResp });
-
-    
-
     navigate("/chat", { replace: true });
   } catch (error: unknown) {
     const appErr = toAppError(error);
+    
+    // If force picker was used, be decisive: go register on *any* failure
+    if (intent === "forcePicker" && (appErr.kind === "webauthn-cancel" || appErr.kind === "http" || appErr.kind === "network")) {
+      return navigate("/register", { replace: true });
+    }
+    
     setBanner(bannerFromError(appErr));
   }
 }
 
   
-
-
-
-  const login = useCallback(async () => {
+const login = useCallback<(intent: LoginIntent) => Promise<void>>(async (intent="default") => {
     setError(null);
     if (!supported || submitting) return;
     
     try {
       setSubmitting(true);
-      await loginWithPasskey()
+      await loginWithPasskey(intent)
 
     
     } catch (error: any) {
@@ -90,13 +77,13 @@ export default function LoginPasskey({
     } finally {
       setSubmitting(false);
     }
-  }, [DEFAULT_LOGIN_PASSKEY_API, navigate, onSuccess, supported, submitting]);
+  }, [DEFAULT_LOGIN_PASSKEY_API,supported, submitting]);
 
   return (
-    <div className="w-full max-w-md mx-auto p-4">
+    <div className="w-full max-w-md m-auto p-4">
       <Card className="backdrop-blur bg-white/70 dark:bg-neutral-900/70">
         <CardHeader>
-          <CardTitle>Sign in</CardTitle>
+          <CardTitle className="text-xl font-semibold tracking-tight">Sign in</CardTitle>
           {!supported && (
             <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 p-3 text-sm">
               Your browser doesn’t support Passkeys/WebAuthn. Try the latest Chrome/Safari/Firefox,
@@ -113,9 +100,9 @@ export default function LoginPasskey({
         <CardContent>
           <Button
             type="button"
-            onClick={login}
+            onClick={() => login("default")}
             disabled={!supported || submitting}
-            className="w-full inline-flex items-center justify-center gap-2"
+            className="w-full inline-flex items-center justify-center gap-2 bg-teal-600 "
           >
             {submitting ? (
               <>
@@ -130,7 +117,16 @@ export default function LoginPasskey({
             )}
           </Button>
 
-          <p className="mt-3 text-xs text-neutral-500">
+          <Button
+            variant="link"
+            className="w-auto px-0 mt-1  h-11 text-base text-muted-foreground "
+            onClick={()=>login("forcePicker")}
+          >
+          {/* <Users className="mr-2 h-4 w-4" /> */}
+          Use another account
+        </Button>
+
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
             Tip: if nothing happens, ensure you registered a passkey on this device and you’re on the
             same origin (RP ID) you used for registration.
           </p>
@@ -142,7 +138,7 @@ export default function LoginPasskey({
                                     Create account
                     </Button>
                    }
-                  className="mb-3"
+                  className="my-3"
                   />
       )}
     </div>
