@@ -54,12 +54,12 @@ export async function createPairingSession(): Promise<{ sessionId: string; chall
   return { sessionId, challenge, ttl: TTL }
 }
 
-export async function registerSocket(sessionId: string, socketId: string) {
+export async function registerSocket(sessionId: string, socketId: string,socketNs = "/pair") {
   const k = key(sessionId);
   const exists = await redis.exists(k);
   if (!exists) return false;
 
-  await redis.hSet(k, { socketId });
+  await redis.hSet(k, { socketId,socketNs });
   // keep existing TTL (don’t renew)
   return true;
 }
@@ -82,9 +82,18 @@ export async function approveIfValid(sessionId: string,challenge: string) {
   return "ok" as const;
 }
 
+ // keep backwards-compatible helper returning only the id
 export async function getSocketId(sessionId: string) {
-  return (await redis.hGet(key(sessionId), "socketId")) || undefined;
+ return (await redis.hGet(key(sessionId), "socketId")) || undefined;
 }
+
+
+// new helper: return socket entry (id + namespace)
+export async function getSocketEntry(sessionId: string): Promise<{ socketId?: string; socketNs?: string }> {
+  const vals = await redis.hmGet(key(sessionId), ["socketId", "socketNs"]);
+  return { socketId: vals[0] || undefined, socketNs: vals[1] || undefined };
+}
+
 
 export async function isValidated(sessionId: string) {
   return (await redis.hGet(key(sessionId), "validated")) === "1";
@@ -115,7 +124,10 @@ export function startSweeper(_io: SocketIOServer) {
 // If mobile validated before desktop joined, emit now
 export async function emitPendingIfAny(io: SocketIOServer, sessionId: string) {
   if (await isValidated(sessionId)) {
-    io.to((await getSocketId(sessionId))!).emit("session-validated", { sessionId });
+    const { socketId, socketNs } = await getSocketEntry(sessionId);
+    if (socketId) {
+      io.of(socketNs ?? "/").to(socketId).emit("session-validated", { sessionId })
+    }
     await consumeAndExpire(io, sessionId, "used");
   }
 }

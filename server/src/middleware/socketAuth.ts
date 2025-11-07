@@ -1,5 +1,5 @@
 // socket middleware
-import type { Server, Socket } from "socket.io";
+import type { Server, Socket,Namespace } from "socket.io";
 import { authFromSid } from "../auth/shared";
 import * as cookie from "cookie"; // npm i cookie
 
@@ -10,7 +10,7 @@ function getCookie(socket: Socket, name: string): string | undefined {
   return parsed[name];
 }
 
-export function requireSocketAuth(io: Server) {
+export function requireSocketAuth(io: Server | Namespace) {
   io.use(async (socket, next) => {
     try {
       const sid = getCookie(socket, "sid");

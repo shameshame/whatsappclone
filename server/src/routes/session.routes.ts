@@ -3,7 +3,8 @@ import { Router } from "express";
 import type { Server as SocketIOServer } from "socket.io";
 import {
   createPairingSession, approveIfValid, getSocketId, consumeAndExpire,getStatus,
-  getMe
+  getMe,
+  getSocketEntry
 } from "../services/session.service";
 import { createAuthCode,takeAuthCode } from "../utils/auth";
 import { issueAppSession } from "../services/auth.session.service";
@@ -47,13 +48,13 @@ sessionRouter.post("/validate", requireAuth, async (req, res) => {
   if (status === "bad-challenge") return res.status(400).json({ ok: false, message: "Bad challenge" });
 
   const io = req.app.get("io") as SocketIOServer;
-  const socketId = await getSocketId(sessionId);
+  const { socketId, socketNs } = await getSocketEntry(sessionId);
  
   // mint one-time auth code (TTL ~ 60s) - correct this call due to the last changes in createAuthCode
   const authCode = await createAuthCode({ userId, sessionId,deviceInfo });
 
   if (socketId) {
-    io.to(socketId).emit("session-approved", { sessionId, authCode });
+    io.of(socketNs ?? "/").to(socketId).emit("session-approved", { sessionId, authCode });
     
     // Optional: mark the pairing record as "approved"
     await redis.hSet(`pair:${sessionId}`, { status: "approved" });

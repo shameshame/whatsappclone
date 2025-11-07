@@ -80,10 +80,12 @@ const onRefresh = async () => {
 
 // 1) Create socket once
 useEffect(() => {
-    const socket = io({ path: "/socket.io",withCredentials:true }); // goes via Vite proxy
+    const socket = io("/pair",{ path: "/socket.io",withCredentials:true }); // goes via Vite proxy
     socketRef.current = socket;
 
     const onSessionApproved = async ({ sessionId, authCode }:{sessionId:string,authCode:string}) => {
+            console.log("[client] session-approved event received", { sessionId, authCode, joinedWith: joinedWithRef.current });
+      
             const invalidInput = !isSessionId(sessionId) || !isAuthCode(authCode)
             const isDifferentSession= joinedWithRef.current && sessionId !== joinedWithRef.current
         
@@ -99,8 +101,6 @@ useEffect(() => {
              console.error("exchange failed", error);
           }
     };
-
-  
     
     const onValidated = ({ sessionId }: { sessionId: string }) => {
       console.log("[client] session-validated", { sessionId,currentTokenRef: currentTokenRef.current,joinedWith: joinedWithRef.current, });

@@ -48,6 +48,11 @@ model Message {
   text      String
   createdAt DateTime @default(now())
 
+  // new stuff
+  editedAt   DateTime?
+  isDeleted  Boolean  @default(false)
+  deletedAt  DateTime?
+
   @@index([chatId, createdAt(sort: Desc)])
 }
 

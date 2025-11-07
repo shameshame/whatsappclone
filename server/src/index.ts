@@ -19,7 +19,16 @@ const app = express();
 const morgan = require("morgan")
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {path: "/socket.io", cors: { origin: "http://localhost:5173",credentials:true } });
-requireSocketAuth(io)
+
+// create namespaces
+const pairNamespace = io.of("/pair");   // no auth, used by QR pairing UI
+const chatNamespace = io.of("/chat");   // protected, for chat sockets
+
+
+// protect chat namespace only
+requireSocketAuth(chatNamespace);
+
+
 
 
 async function main() {
@@ -83,10 +92,19 @@ app.use((req, res, next) => {
 
 
 // WS handlers
-io.on("connection", (socket) => {
+
+// pairing namespace: no auth required
+pairNamespace.on("connection", (socket) => {
+  console.log("pair namespace connected", socket.id);
   socket.on("join-session", async ({ sessionId }: { sessionId: string }) => {
     const ok = await registerSocket(sessionId, socket.id);
     if (ok) await emitPendingIfAny(io, sessionId);
   });
 });
 
+
+// chat namespace handlers
+chatNamespace.on("connection", (socket) => {
+  console.log("chat namespace connected", socket.id, (socket as any).user?.id);
+  // chat handlers...
+});
