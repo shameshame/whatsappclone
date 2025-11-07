@@ -1,10 +1,20 @@
 import { RequestHandler } from "express";
 import { deterministicId } from "../chat/dm";
 import { PrismaClient } from "@prisma/client";
+import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
+import { requireAuth } from "../middleware/requireAuth";
 
 
 
 const prisma = new PrismaClient();
+
+const CHAT_NS = "/chat";
+
+function emitToChatRoom(io: any, room: string, event: string, payload: any) {
+  
+  // io.of will return the namespace (creates if missing) — same namespace instance used by requireSocketAuth
+  io?.of(CHAT_NS).to(room).emit(event, payload);
+}
 
 
 export const getChatHistory :RequestHandler = async(req: any,res:any)=>{
@@ -56,12 +66,9 @@ export const createMessage: RequestHandler = async (req, res) => {
 
   // fan-out via Socket.IO room
   const io = req.app.get("io");
-  io.to(chatId).emit("dm:new", {
-    id: created.id,
-    chatId: created.chatId,
-    senderId: created.senderId,
-    text: created.text,
-    createdAt: created.createdAt.toISOString(),
+  emitToChatRoom(io, chatId, "dm:new", {
+    id: created.id, chatId: created.chatId, senderId: created.senderId,
+    text: created.text, createdAt: created.createdAt.toISOString(),
   });
 
   res.json({
@@ -75,3 +82,73 @@ export const createMessage: RequestHandler = async (req, res) => {
     },
   })
 }
+
+
+// PATCH /api/dm/:peerId/messages/:messageId  { content: string }
+export const editMessage: RequestHandler= async (req, res) => {
+  const me = (req as any).user.id as string;
+  const { peerId, messageId } = req.params;
+  const { content } = (req.body ?? {}) as { content?: string };
+
+  if (typeof content !== "string" || content.trim().length === 0) {
+    return res.status(400).json({ ok: false, code: "bad-content" });
+  }
+
+  const chatId = deterministicId(me, peerId as string);
+
+  try {
+    const msg = await loadOwnedMessageOrThrow(messageId, me, chatId);
+    if (msg.isDeleted) return res.status(409).json({ ok: false, code: "already-deleted" });
+
+    assertWithinEditWindowOrThrow(msg);
+
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: { text: content.trim(), editedAt: new Date() },
+      select: { id: true, chatId: true, senderId: true, text: true, editedAt: true },
+    });
+
+    // Notify room via Socket.IO
+    const io = req.app.get("io");
+    emitToChatRoom(io, chatId, "dm:message-updated", { message: updated });
+    
+
+    return res.json({ ok: true, message: updated });
+  
+  } catch (err: any) {
+    const status = err?.status ?? 500;
+    return res.status(status).json({ ok: false, code: err?.message || "server-error" });
+  }
+};
+
+// Delete message (soft delete)
+// DELETE /api/dm/:peerId/messages/:messageId
+export const deleteMessage: RequestHandler = async (req, res) => {
+  const me = (req as any).user.id as string;
+  const { peerId, messageId } = req.params;
+
+  const chatId = deterministicId(me, peerId as string);
+
+  try {
+    
+    const message = await loadOwnedMessageOrThrow(messageId, me, chatId);
+    if (message.isDeleted) {
+      return res.status(409).json({ ok: false, code: "already-deleted" });
+    }
+
+    const deleted = await prisma.message.update({
+      where: { id: messageId },
+      data: { isDeleted: true, deletedAt: new Date(), text: "" }, // blank out content
+      select: { id: true, chatId: true, senderId: true, isDeleted: true, deletedAt: true },
+    });
+
+    const io = req.app.get("io");
+    emitToChatRoom(io, chatId, "dm:message-deleted", { messageId: deleted.id });
+    
+    return res.json({ ok: true });
+  
+  } catch (err: any) {
+    const status = err?.status ?? 500;
+    return res.status(status).json({ ok: false, code: err?.message || "server-error" });
+  }
+};
