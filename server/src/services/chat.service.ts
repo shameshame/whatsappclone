@@ -66,20 +66,16 @@ export const createMessage: RequestHandler = async (req, res) => {
 
   // fan-out via Socket.IO room
   const io = req.app.get("io");
-  emitToChatRoom(io, chatId, "dm:new", {
-    id: created.id, chatId: created.chatId, senderId: created.senderId,
-    text: created.text, createdAt: created.createdAt.toISOString(),
-  });
+  const payload = { 
+                    id: created.id, chatId: created.chatId, senderId: created.senderId,
+                    text: created.text, createdAt: created.createdAt.toISOString(),
+                  };
+  
+  emitToChatRoom(io, chatId, "dm:new", payload);
 
   res.json({
     ok: true,
-    message: {
-      id: created.id,
-      chatId: created.chatId,
-      senderId: created.senderId,
-      text: created.text,
-      createdAt: created.createdAt.toISOString(),
-    },
+    message: payload,
   })
 }
 
@@ -111,8 +107,6 @@ export const editMessage: RequestHandler= async (req, res) => {
     // Notify room via Socket.IO
     const io = req.app.get("io");
     emitToChatRoom(io, chatId, "dm:message-updated", { message: updated });
-    
-
     return res.json({ ok: true, message: updated });
   
   } catch (err: any) {

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState,useCallback } from "react"
 import type { User } from "@/types/user"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -6,16 +6,11 @@ import { Avatar,AvatarImage} from "@/components/ui/avatar"
 import { ChatSearch } from "./ChatSearch";
 import { Send,VideoIcon,ChevronDown,MoreVertical  } from "lucide-react"
 import MessageBubble from "./MessageBubble"
-import { ChatHeader } from "./ChatHeader"
-
-
-interface Message {
-  id: string;
-  text: string;
-  senderId: string;
-  timestamp: number;
-}
-
+import { ChatMore } from "./ChatMore"
+import { useParams } from "react-router"
+import { useDirectChat } from "./UseDirectChat"
+import { ChatMessage } from "@/types/chat";
+import {ChatTopMenu} from "./ChatTopMenu";
 
 
 const users = [
@@ -34,59 +29,45 @@ const users = [
 const userMap = new Map<string,User>(users.map((user) => [user.id, user]))
 
 
-export default function ChatWindow(){
-    const [messages, setMessages] = useState<Message[]>([])
+export default function ChatWindow() {
     const [input, setInput] = useState("")
-    const [currentUser, setCurrentUser] = useState<User>({id:"",name:"",avatar:""});
-
+    const { peerId } = useParams<{ peerId: string }>();
     
+    const { messages, loading, sendMessage } = useDirectChat(peerId as string);
+    const currentUser = userMap.get("userA"); // assuming userA is the current user
+    // const ChatTopMenuComp = ChatTopMenu as unknown;
 
-  const sendMessage = () => {
-    const newMessage: Message = {
-      id: crypto.randomUUID(),
-      text: input,
-      senderId: currentUser.id,
-      timestamp: Date.now()
-    };
-    
-    
-    if (input.trim()){
-      setMessages([...messages, newMessage])
-      setInput("")
-    }
-  }
-
-  return(<div className="flex-1 bg-[#f7f1ea] flex flex-col  h-screen">
-        <div className="flex justify-between items-center bg-white p-4 shadow-sm ">
-          <div className="flex items-center gap-3 px-4">
-          <Avatar className="w-16 h-16"><AvatarImage src="https://i.pravatar.cc/150?u=alice" className="w-full h-full object-cover"/></Avatar>
+  return (
+    <div className="flex-1 bg-[#f7f1ea] flex flex-col  h-screen">
+      <div className="flex justify-between items-center bg-white p-4 shadow-sm ">
+        <div className="flex items-center gap-3 px-4">
+          <Avatar className="w-16 h-16">
+            <AvatarImage src="https://i.pravatar.cc/150?u=alice" className="w-full h-full object-cover"/>
+          </Avatar>
           <span className="text-lg font-medium">Alice</span>
-        </div>
-          <div className="flex items-center gap-3">
-            <div className="flex ">
-                <VideoIcon/>
-                <ChevronDown/>
-            </div>
-           
-            <ChatSearch  messages={messages}/>
-            
-           <ChatHeader/>
-          </div>
-        </div>
-       
-
-     
-
-       {/* Messages */}
+         <ChatTopMenu messages={messages}/>
+      </div>
+      </div>
+      
+      {/* Messages */}
       <div className="overflow-y-auto p-4 space-y-8  h-screen">
-        {messages.map((message, index) => {
+        {loading ? <div>Loading…</div> : null}
+        {messages.map((message: ChatMessage) => {
             const isMe = message.senderId === currentUser?.id;
             const sender = userMap.get(message.senderId)
 
-            return (<MessageBubble key={message.id} text={message.text} timestamp={message.timestamp} isMe={isMe} avatarUrl={sender?.avatar}/>);
+            return (
+              <MessageBubble
+                key={message.id}
+                text={message.text}
+                timestamp={Date.parse(message.createdAt)}
+                isMe={isMe}
+                avatarUrl={sender?.avatar}
+              />
+            );
         })}
       </div>
-
+      
       {/* Input */}
       <div className="sticky bottom-0 border-t p-2 flex items-center gap-2">
         <Input
@@ -94,17 +75,29 @@ export default function ChatWindow(){
           className="bg-white"
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => event.key === "Enter" && sendMessage()}
+          onKeyDown={async (event) => {
+            if (event.key === "Enter") {
+              const text = input;
+              setInput("");
+              try { await sendMessage(text); } catch (e) { console.error(e); }
+            }
+          }}
         />
-        <Button onClick={sendMessage} size="icon">
+        <Button size="icon" onClick={async () => {
+          const text = input.trim();
+          if (!text) return;
+          setInput("");
+          try { await sendMessage(text); } catch (e) { console.error(e); }
+        }}>
           <Send className="h-4 w-4" />
         </Button>
       </div>
-
-        {/* <div className="flex-1 p-4"></div> */}
-
-        {/* <div className="m-4 h-10 bg-gray-300 rounded-full" /> */}
-      </div>)
-
-
+    </div>
+  )
 }
+
+
+
+
+
+

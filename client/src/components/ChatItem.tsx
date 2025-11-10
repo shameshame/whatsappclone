@@ -1,7 +1,7 @@
 
 type ChatItemProps = {
   name: string;
-  message:string
+  message?:string
 };
 
 

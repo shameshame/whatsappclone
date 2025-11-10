@@ -1,14 +1,15 @@
 import { useState } from "react";
 import type { Chat } from "@/types/chat";
+import { useNavigate } from "react-router";
 import ChatItem from "./ChatItem";
 
 
 
 const allChats : Chat[] = [
-  {id:"1" ,name: "Корзина", messages: [{id:"1",text:"Севька сказал в кои-то веки они у нас,пусть они у нас побудут"}] },
-  { id:"2",name: "Верочка Харченкова", messages: [{id:"1",text:"С праздником, молодёжь…" }]},
-  { id:"3",name: "Анишичер", messages: [{id:"1",text:"У него посиделки, а у меня полежалки…"}] },
-  { id:"4",name: "Жопа Срычер", messages: [{id:"1",text:"Это не Витьки звонили, Машка сказала,что они не приезжали" }]},
+  {peerId:"1" ,name: "Корзина", messages: [{id:"1",text:"Севька сказал в кои-то веки они у нас,пусть они у нас побудут"}] },
+  { peerId:"2",name: "Верочка Харченкова", messages: [{id:"1",text:"С праздником, молодёжь…" }]},
+  { peerId:"3",name: "Анишичер", messages: [{id:"1",text:"У него посиделки, а у меня полежалки…"}] },
+  { peerId:"4",name: "Жопа Срычер", messages: [{id:"1",text:"Это не Витьки звонили, Машка сказала,что они не приезжали" }]},
 ];
 
 
@@ -19,6 +20,7 @@ export default function ChatList(){
 
  const [searchTerm, setSearchTerm] = useState('');
  const [chats] = useState(allChats);
+ const navigate = useNavigate();
 
  const filteredChats = allChats.filter(chat => {
     const term = searchTerm.toLowerCase();
@@ -28,6 +30,8 @@ export default function ChatList(){
     );
     return nameMatches || messageMatches;
   });
+
+  const onChatClick = (peerId: string) => navigate(`/chat/${peerId}`,{ replace: true });
  
  
  
@@ -63,14 +67,16 @@ export default function ChatList(){
          ? 
         <div className="mt-2 overflow-y-auto">
           {allChats.map((chat) => (
-            <ChatItem key={chat.name} name={chat.name} message={chat.messages[chat.messages.length-1].text} />
+            <div role="button" key={chat.peerId} onClick={() => onChatClick(chat.peerId)} className="cursor-pointer">
+              <ChatItem name={chat.name} message={chat.messages[chat.messages.length-1]?.text} />
+            </div>
           ))}
         </div>
         :
         // If matches are found, render them, otherwise display an appropriate message
         filteredChats.length 
         ? filteredChats.map(chat => (
-          <li key={chat.id} className="p-4 bg-gray-100 rounded">
+          <li key={chat.peerId} className="p-4 bg-gray-100 rounded">
             <p className="font-semibold mb-1">{chat.name}</p>
             <ul className="text-sm text-gray-700 space-y-1">
               {chat.messages.filter(msg =>msg.text.toLowerCase().includes(searchTerm.toLowerCase()))

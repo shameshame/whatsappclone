@@ -15,7 +15,7 @@ import { useState } from "react";
 
 
 
-export function ChatHeader(){
+export function ChatMore(){
 
   const navigate=useNavigate()
     

@@ -8,7 +8,7 @@ export const chatRouter = Router();
 
 
 chatRouter.get("/:peerId/history",requireAuth,getChatHistory)
-chatRouter.post("/:peerId/messages",requireAuth,createMessage)
+chatRouter.post("/:peerId/send",requireAuth,createMessage)
 
 
 
