@@ -3,7 +3,7 @@ import { ReactNode,createContext, useContext, useState,useEffect, useCallback, u
 
 
 
-const AuthContext = createContext<AuthStatus>({status:"unauthenticated",user:undefined,device:undefined})
+const AuthContext = createContext<AuthStatus>({status:"loading",user:undefined,device:undefined})
 
 export const useAuth = () => {
   const authStatus = useContext(AuthContext);

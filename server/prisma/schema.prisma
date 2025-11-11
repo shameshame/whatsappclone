@@ -16,6 +16,10 @@ model User {
   createdAt     DateTime     @default(now())
   credentials   Credential[]
   devices       Device[]
+
+  // relation back to ChatMember (one entry per chat this user is in)
+  chatMembers ChatMember[]
+  Message     Message[]
 }
 
 model Credential {
@@ -42,17 +46,63 @@ model Device {
 
 model Message {
   id        String   @id @default(cuid())
-  chatId    String   // e.g. "dm:<userA>|<userB>" sorted
-  senderId  String   // User.id
+  chatId    String // e.g. "dm:<userA>|<userB>" sorted
+  senderId  String // User.id
   kind      String   @default("text") // future: "image", "file", etc.
   text      String
   createdAt DateTime @default(now())
 
   // new stuff
-  editedAt   DateTime?
-  isDeleted  Boolean  @default(false)
-  deletedAt  DateTime?
+  editedAt  DateTime?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  chat   Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [senderId], references: [id])
 
   @@index([chatId, createdAt(sort: Desc)])
 }
 
+// Chat model: generic conversation container (DM or Group)
+model Chat {
+  // For DMs you can keep deterministic ids like "dm:<userA>|<userB>"
+  // For groups you may use uuid() when creating a group chat.
+  id            String    @id
+  type          ChatType  @default(DM)
+  name          String? // group name or optional display name
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastMessageAt DateTime?
+
+  // relations
+  members ChatMember[]
+  messages Message[]
+
+  @@index([lastMessageAt])
+}
+
+// Join table for Chat <-> User (allows metadata per participant)
+model ChatMember {
+  id          String         @id @default(uuid())
+  chatId      String
+  userId      String
+  joinedAt    DateTime       @default(now())
+  role        ChatMemberRole @default(MEMBER)
+  unreadCount Int            @default(0)
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@index([userId])
+}
+
+enum ChatType {
+  DM
+  GROUP
+}
+
+enum ChatMemberRole {
+  MEMBER
+  ADMIN
+}

@@ -2,7 +2,7 @@ import { RequestHandler } from "express";
 import { deterministicId } from "../chat/dm";
 import { PrismaClient } from "@prisma/client";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
-import { requireAuth } from "../middleware/requireAuth";
+
 
 
 
@@ -15,6 +15,122 @@ function emitToChatRoom(io: any, room: string, event: string, payload: any) {
   // io.of will return the namespace (creates if missing) — same namespace instance used by requireSocketAuth
   io?.of(CHAT_NS).to(room).emit(event, payload);
 }
+
+export const getAllMyChats: RequestHandler = async (req, res,next) => {
+
+  try {
+    const me = (req as any).user.id as string;
+
+    const chats = await prisma.chat.findMany({
+      where: {
+        members: {
+          some: { userId: me },
+        },
+      },
+      orderBy: {
+        // use lastMessageAt if you keep it updated on every new message;
+        // otherwise you could use updatedAt
+        lastMessageAt: "desc",
+      },
+      select: {
+        id: true,
+        type: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        lastMessageAt: true,
+
+        // all members with basic user info
+        members: {
+          select: {
+            userId: true,
+            role: true,
+            unreadCount: true,
+            user: {
+              select: {
+                id: true,
+                displayName: true,
+                handle: true,
+              },
+            },
+          },
+        },
+
+        // last message in this chat
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            text: true,
+            kind: true,
+            createdAt: true,
+            isDeleted: true,
+            editedAt: true,
+            senderId: true,
+            author: {
+              select: {
+                id: true,
+                displayName: true,
+                handle: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Shape data into a clean payload for the client
+    const payload = chats.map(chat => {
+      const lastMessage = chat.messages[0] ?? null;
+
+      const myMemberRow = chat.members.find(m => m.userId === me) || null;
+
+      return {
+        id: chat.id,
+        type: chat.type,              // "DM" | "GROUP"
+        name: chat.name,
+        createdAt: chat.createdAt,
+        updatedAt: chat.updatedAt,
+        lastMessageAt: chat.lastMessageAt,
+
+        lastMessage: lastMessage && {
+          id: lastMessage.id,
+          text: lastMessage.isDeleted ? null : lastMessage.text,
+          kind: lastMessage.kind,
+          createdAt: lastMessage.createdAt,
+          editedAt: lastMessage.editedAt,
+          isDeleted: lastMessage.isDeleted,
+          sender: {
+            id: lastMessage.author.id,
+            displayName: lastMessage.author.displayName,
+            handle: lastMessage.author.handle,
+          },
+        },
+
+        // every participant
+        participants: chat.members.map(member => ({
+          id: member.user.id,
+          displayName: member.user.displayName,
+          handle: member.user.handle,
+          role: member.role,
+        })),
+
+        // info specific to *this* user
+        me: myMemberRow && {
+          role: myMemberRow.role,
+          unreadCount: myMemberRow.unreadCount,
+        },
+      };
+     });
+    res.json({ chats: payload });
+  } catch (err) {
+    next(err);
+  } 
+
+}  
+
+
 
 
 export const getChatHistory :RequestHandler = async(req: any,res:any)=>{
@@ -50,7 +166,7 @@ export const getChatHistory :RequestHandler = async(req: any,res:any)=>{
 
 }
 
-export const createMessage: RequestHandler = async (req, res) => {
+export const sendMessage: RequestHandler = async (req, res) => {
   const me = (req as any).user.id as string;
   const { peerId } = req.params;
   const { text } = (req.body ?? {}) as { text?: string };

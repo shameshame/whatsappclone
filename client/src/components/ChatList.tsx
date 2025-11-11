@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { Chat } from "@/types/chat";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import ChatItem from "./ChatItem";
+import { ChatMore } from "./ChatMore";
 
 
 
@@ -19,8 +20,8 @@ const allChats : Chat[] = [
 export default function ChatList(){
 
  const [searchTerm, setSearchTerm] = useState('');
- const [chats] = useState(allChats);
  const navigate = useNavigate();
+ const here = useLocation().pathname;
 
  const filteredChats = allChats.filter(chat => {
     const term = searchTerm.toLowerCase();
@@ -37,7 +38,10 @@ export default function ChatList(){
  
  return <div className="w-[350px] bg-white border-r border-gray-200 flex flex-col">
         <div className="p-4">
-          <h2 className="text-lg text-left text-green-500 font-semibold">Whatsapp</h2>
+          <div className="flex justify-between">
+            <h2 className="text-lg text-left text-green-500 font-semibold">Whatsapp</h2>
+            {here.startsWith("/phone") && <ChatMore/>}
+          </div>
           <div className="relative mt-2">
             <input
               type="text"
