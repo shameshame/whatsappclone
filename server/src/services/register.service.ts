@@ -9,6 +9,7 @@ import { stringToBytes} from "../utils/stringToBytes";
 import { toB64url } from "../utils/toB64url";
 import { createUserIfNotCreatedYet } from "../db/user";
 import { getRpIdFromOrigin,getExpectedOrigin } from "../utils/origin";
+import { Server } from "socket.io";
 
 export const  passkeyRegistrationOptions: RequestHandler = async(req,res, next)=>{
   try {
@@ -89,7 +90,18 @@ export const registerVerify: RequestHandler = async (req, res, next) => {
     };
 
     // Upsert User (create if not pre-created)
-    createUserIfNotCreatedYet(complete)
+   let user= await createUserIfNotCreatedYet(complete)
+    
+    const io = req.app.get("io") as Server
+    
+    // notify chat clients only
+    io.of("/chat").emit("user:created", {
+      id: user.id,
+      displayName: user.displayName,
+      handle: user.handle ?? null,
+    });
+    
+    
     
     // Create app session
     const sid = await issueAppSession(userId, deviceInfo);

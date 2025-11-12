@@ -1,5 +1,5 @@
 // server/src/db.ts
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, User } from "@prisma/client";
 import { RegComplete, RegPending } from "../types/userAndCredentialData";
 import { randomUUID } from "crypto";
 
@@ -50,9 +50,10 @@ export async function updateCounter(
 }
 
 
-export async function createUserIfNotCreatedYet(complete:RegComplete){
-   await prisma.$transaction(async (tx:Prisma.TransactionClient) => {
-      await tx.user.upsert({
+export async function createUserIfNotCreatedYet(complete:RegComplete) :Promise<User>{
+  
+ const user= await prisma.$transaction(async (tx:Prisma.TransactionClient) => {
+     const createdOrExisting= await tx.user.upsert({
         where: { id: complete.id },
         create: {
           id: complete.id, // ok to provide even though model has @default(uuid())
@@ -74,7 +75,9 @@ export async function createUserIfNotCreatedYet(complete:RegComplete){
         transports: complete.transports
       },
     });
-
+    return createdOrExisting;
     
-    })
+  })
+
+  return user;
 }

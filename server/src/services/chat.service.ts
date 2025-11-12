@@ -1,7 +1,9 @@
 import { RequestHandler } from "express";
 import { deterministicId } from "../chat/dm";
 import { PrismaClient } from "@prisma/client";
+import { allChatsForCurrentUser } from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
+import { LastMessageSelected, ChatMemberWithUser} from "../db/chat/types";
 
 
 
@@ -10,91 +12,15 @@ const prisma = new PrismaClient();
 
 const CHAT_NS = "/chat";
 
-function emitToChatRoom(io: any, room: string, event: string, payload: any) {
-  
+function emitToChatRoom(req: any, room: string, event: string, payload: any) {
+  const io = req.app.get("io");
   // io.of will return the namespace (creates if missing) — same namespace instance used by requireSocketAuth
   io?.of(CHAT_NS).to(room).emit(event, payload);
 }
 
-export const getAllMyChats: RequestHandler = async (req, res,next) => {
+function populateLastMessageProp(lastMessage:LastMessageSelected|null) {
 
-  try {
-    const me = (req as any).user.id as string;
-
-    const chats = await prisma.chat.findMany({
-      where: {
-        members: {
-          some: { userId: me },
-        },
-      },
-      orderBy: {
-        // use lastMessageAt if you keep it updated on every new message;
-        // otherwise you could use updatedAt
-        lastMessageAt: "desc",
-      },
-      select: {
-        id: true,
-        type: true,
-        name: true,
-        createdAt: true,
-        updatedAt: true,
-        lastMessageAt: true,
-
-        // all members with basic user info
-        members: {
-          select: {
-            userId: true,
-            role: true,
-            unreadCount: true,
-            user: {
-              select: {
-                id: true,
-                displayName: true,
-                handle: true,
-              },
-            },
-          },
-        },
-
-        // last message in this chat
-        messages: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: {
-            id: true,
-            text: true,
-            kind: true,
-            createdAt: true,
-            isDeleted: true,
-            editedAt: true,
-            senderId: true,
-            author: {
-              select: {
-                id: true,
-                displayName: true,
-                handle: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    // Shape data into a clean payload for the client
-    const payload = chats.map(chat => {
-      const lastMessage = chat.messages[0] ?? null;
-
-      const myMemberRow = chat.members.find(m => m.userId === me) || null;
-
-      return {
-        id: chat.id,
-        type: chat.type,              // "DM" | "GROUP"
-        name: chat.name,
-        createdAt: chat.createdAt,
-        updatedAt: chat.updatedAt,
-        lastMessageAt: chat.lastMessageAt,
-
-        lastMessage: lastMessage && {
+    return lastMessage && {
           id: lastMessage.id,
           text: lastMessage.isDeleted ? null : lastMessage.text,
           kind: lastMessage.kind,
@@ -106,15 +32,42 @@ export const getAllMyChats: RequestHandler = async (req, res,next) => {
             displayName: lastMessage.author.displayName,
             handle: lastMessage.author.handle,
           },
-        },
+    }
 
-        // every participant
-        participants: chat.members.map(member => ({
+}
+
+function populateParticipantsList(members:ChatMemberWithUser[]) {
+  return members.map(member => ({
           id: member.user.id,
           displayName: member.user.displayName,
           handle: member.user.handle,
           role: member.role,
-        })),
+        }))
+
+}
+
+export const getAllMyChats: RequestHandler = async (req, res,next) => {
+
+  try {
+    const me = (req as any).user.id as string;
+    const chats = await allChatsForCurrentUser(me);
+    
+    // Shape data into a clean payload for the client
+    const payload = chats.map(chat => {
+      const lastMessage = chat.messages[0] ?? null;
+      const myMemberRow = chat.members.find(member => member.user.id === me) || null;
+
+      return {
+        id: chat.id,
+        type: chat.type,              // "DM" | "GROUP"
+        name: chat.name,
+        createdAt: chat.createdAt,
+        updatedAt: chat.updatedAt,
+        lastMessageAt: chat.lastMessageAt,
+        lastMessage: populateLastMessageProp(lastMessage),
+
+        // every participant
+        participants: populateParticipantsList(chat.members),
 
         // info specific to *this* user
         me: myMemberRow && {
@@ -129,8 +82,6 @@ export const getAllMyChats: RequestHandler = async (req, res,next) => {
   } 
 
 }  
-
-
 
 
 export const getChatHistory :RequestHandler = async(req: any,res:any)=>{
@@ -181,14 +132,13 @@ export const sendMessage: RequestHandler = async (req, res) => {
   });
 
   // fan-out via Socket.IO room
-  const io = req.app.get("io");
+  
   const payload = { 
                     id: created.id, chatId: created.chatId, senderId: created.senderId,
                     text: created.text, createdAt: created.createdAt.toISOString(),
                   };
   
-  emitToChatRoom(io, chatId, "dm:new", payload);
-
+  emitToChatRoom(req, chatId, "dm:new", payload);
   res.json({
     ok: true,
     message: payload,
@@ -221,8 +171,7 @@ export const editMessage: RequestHandler= async (req, res) => {
     });
 
     // Notify room via Socket.IO
-    const io = req.app.get("io");
-    emitToChatRoom(io, chatId, "dm:message-updated", { message: updated });
+    emitToChatRoom(req, chatId, "dm:message-updated", { message: updated });
     return res.json({ ok: true, message: updated });
   
   } catch (err: any) {
@@ -252,9 +201,8 @@ export const deleteMessage: RequestHandler = async (req, res) => {
       select: { id: true, chatId: true, senderId: true, isDeleted: true, deletedAt: true },
     });
 
-    const io = req.app.get("io");
-    emitToChatRoom(io, chatId, "dm:message-deleted", { messageId: deleted.id });
     
+    emitToChatRoom(req, chatId, "dm:message-deleted", { messageId: deleted.id });
     return res.json({ ok: true });
   
   } catch (err: any) {
