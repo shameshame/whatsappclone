@@ -1,5 +1,7 @@
 export type User={
-  id: string;
-  name: string;
-  avatar?: string
+    id: string,
+    createdAt: Date,
+    displayName: string,
+    handle: string | null,
+    phoneE164: string | null,
 };

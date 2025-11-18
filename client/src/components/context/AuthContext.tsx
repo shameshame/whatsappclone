@@ -1,5 +1,5 @@
 import { AuthStatus } from "@/types/authContext";
-import { ReactNode,createContext, useContext, useState,useEffect, useCallback, useMemo, useRef } from "react";
+import { ReactNode,createContext, useContext, useState,useEffect} from "react";
 
 
 
@@ -15,7 +15,7 @@ export const useAuth = () => {
 
 export function AuthProvider({children}: {children: ReactNode;}){
 
-   const [auth,setAuth]=useState<AuthStatus>({status:"",user:"",device:""})
+   const [auth,setAuth]=useState<AuthStatus>({status:"",user:undefined,device:""})
 
    // run once on app load to decide if “phone is logged in”
 useEffect(() => {

@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 
 
 
-export const allChatsForCurrentUser = async (userId:string)=> {
+export const allChatsQuery = async (userId:string)=> {
   const chats = await prisma.chat.findMany({
       where: {
         members: {

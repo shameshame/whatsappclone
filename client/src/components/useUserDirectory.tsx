@@ -1,9 +1,10 @@
+import { httpErrorFromResponse } from "@/utilities/error-utils";
 import { useEffect, useState, useMemo } from "react";
 
-type UserSummary = { id: string; displayName: string };
+type UserSummary = { id: string; displayName: string, handle?: string | null };
 
 export function useUserDirectory(currentUserId?: string) {
-  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [usersExceptMe, setUsersExceptMe] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
@@ -13,15 +14,16 @@ export function useUserDirectory(currentUserId?: string) {
     (async () => {
       setLoading(true);
       setError(undefined);
+      
       try {
-        const res = await fetch("/api/users", { credentials: "include" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setUsers((data.users ?? []) as UserSummary[]);
-      } catch (err: any) {
+        const res = await fetch("/api/users", { credentials: "include" ,signal: ac.signal});
         
-        // Check how to use an errorHandler here ( in utils)
-        if (err.name !== "AbortError") setError(err.message ?? "Failed to load users");
+        if (!res.ok) httpErrorFromResponse(res);
+        const data = await res.json();
+        setUsersExceptMe((data.users ?? []) as UserSummary[]);
+      } catch (err: unknown) {
+         if ((err as Error).name !== "AbortError") 
+            setError((err as Error).message ?? "Failed to load users");
       } finally {
         setLoading(false);
       }
@@ -31,25 +33,8 @@ export function useUserDirectory(currentUserId?: string) {
     
   }, []);
 
-  // 🔹 memoized derived values
-
-  const usersExcludingMe = useMemo(
-    () => users.filter(user => user.id !== currentUserId),
-    [users, currentUserId]
-  );
-
-  const sortedUsers = useMemo(
-    () =>
-      [...usersExcludingMe].sort((a, b) =>
-        a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" })
-      ),
-    [usersExcludingMe]
-  );
-
   return {
-    users,            // raw list from server
-    usersExcludingMe, // derived, memoized
-    sortedUsers,      // derived, memoized
+    usersExceptMe,            
     loading,
     error,
   };

@@ -1,5 +1,4 @@
 // authServices.ts
-
 import {generateAuthenticationOptions, verifyAuthenticationResponse} from "@simplewebauthn/server";
 import {getUserIdByCredentialId, updateCounter } from "../db/user"; 
 import type {RequestHandler } from "express";

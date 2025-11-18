@@ -3,6 +3,7 @@ import type { Chat } from "@/types/chat";
 import { useLocation, useNavigate } from "react-router";
 import ChatItem from "./ChatItem";
 import { ChatMore } from "./ChatMore";
+import { NewChatSticky } from "./NewChat";
 
 
 
@@ -92,6 +93,8 @@ export default function ChatList(){
           
         ))
         :<li className="text-gray-400 italic">No chats found.</li>}
+
+        <NewChatSticky/>
         
         </div>
 

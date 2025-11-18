@@ -6,12 +6,14 @@ import { sessionRouter } from "./routes/session.routes";
 import { authRouter } from "./routes/auth.routes";
 import { registryRouter } from "./routes/registration.routes";
 import { chatRouter } from "./routes/chat.routes";
+import { userRouter } from "./routes/user.routes";
 import { registerSocket, emitPendingIfAny } from "./services/session.service";
 import { requireSocketAuth } from "./middleware/socketAuth";
 
 
 import cors from "cors";
 import { randomBytes } from "crypto";
+
 
 
 const cookieParser = require("cookie-parser")
@@ -61,6 +63,7 @@ app.use("/api/session", sessionRouter);
 app.use("/api/auth",authRouter)
 app.use("/api/registration",registryRouter)
 app.use("/api/chat",chatRouter)
+app.use("/api/users",userRouter)
 
 
 // issue a CSRF cookie if it's missing

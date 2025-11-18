@@ -1,7 +1,7 @@
 import { RequestHandler } from "express";
 import { deterministicId } from "../chat/dm";
 import { PrismaClient } from "@prisma/client";
-import { allChatsForCurrentUser } from "../db/chat/chat";
+import { allChatsQuery } from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
 import { LastMessageSelected, ChatMemberWithUser} from "../db/chat/types";
 
@@ -50,7 +50,7 @@ export const getAllMyChats: RequestHandler = async (req, res,next) => {
 
   try {
     const me = (req as any).user.id as string;
-    const chats = await allChatsForCurrentUser(me);
+    const chats = await allChatsQuery(me);
     
     // Shape data into a clean payload for the client
     const payload = chats.map(chat => {

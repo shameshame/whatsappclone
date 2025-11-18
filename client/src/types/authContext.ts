@@ -1,8 +1,9 @@
+import { User } from "./user"
 
 
 export type AuthStatus= {
    status:string,
-   user:string | undefined,
+   user:User | undefined,
    device?:string
 
 }

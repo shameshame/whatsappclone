@@ -11,6 +11,8 @@ import { useParams } from "react-router"
 import { useDirectChat } from "./UseDirectChat"
 import { ChatMessage } from "@/types/chat";
 import {ChatTopMenu} from "./ChatTopMenu";
+import { on } from "events"
+import { useAuth } from "./context/AuthContext"
 
 
 const users = [
@@ -26,17 +28,30 @@ const users = [
   }
 ];
 
-const userMap = new Map<string,User>(users.map((user) => [user.id, user]))
+
 
 
 export default function ChatWindow() {
     const [input, setInput] = useState("")
     const { peerId } = useParams<{ peerId: string }>();
-    
+    const {user}=useAuth();
     const { messages, loading, sendMessage } = useDirectChat(peerId as string);
-    const currentUser = userMap.get("userA"); // assuming userA is the current user
-    // const ChatTopMenuComp = ChatTopMenu as unknown;
+    const currentUser = user?.id
 
+
+    const onSendMessage = useCallback(async () => {
+      const text = input.trim();
+      
+      if (!text.trim()) return;
+      setInput("");
+
+      try {
+        await sendMessage(text);
+      } catch (error) {
+        console.error("Failed to send message:", error);
+      }   
+    }, [sendMessage,peerId]);
+    
   return (
     <div className="flex-1 bg-[#f7f1ea] flex flex-col  h-screen">
       <div className="flex justify-between items-center bg-white p-4 shadow-sm ">
@@ -53,8 +68,8 @@ export default function ChatWindow() {
       <div className="overflow-y-auto p-4 space-y-8  h-screen">
         {loading ? <div>Loading…</div> : null}
         {messages.map((message: ChatMessage) => {
-            const isMe = message.senderId === currentUser?.id;
-            const sender = userMap.get(message.senderId)
+            const isMe = message.senderId === currentUser;
+            
 
             return (
               <MessageBubble
@@ -62,7 +77,6 @@ export default function ChatWindow() {
                 text={message.text}
                 timestamp={Date.parse(message.createdAt)}
                 isMe={isMe}
-                avatarUrl={sender?.avatar}
               />
             );
         })}
@@ -76,19 +90,11 @@ export default function ChatWindow() {
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={async (event) => {
-            if (event.key === "Enter") {
-              const text = input;
-              setInput("");
-              try { await sendMessage(text); } catch (e) { console.error(e); }
-            }
-          }}
+            if (event.key === "Enter") onSendMessage();
+          }
+         }
         />
-        <Button size="icon" onClick={async () => {
-          const text = input.trim();
-          if (!text) return;
-          setInput("");
-          try { await sendMessage(text); } catch (e) { console.error(e); }
-        }}>
+        <Button size="icon" onClick={onSendMessage}>
           <Send className="h-4 w-4" />
         </Button>
       </div>
