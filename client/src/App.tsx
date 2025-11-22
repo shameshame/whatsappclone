@@ -28,7 +28,7 @@ function App() {
             <Route path="/register" element={<CreateAccount/>} />
             <Route path="/phone/login" element={<LoginPasskey/>} />
             <Route path="/phone/devices" element={<ConnectedDevices/>}/>
-            <Route path="/phone/chat" element={<Protected><ChatList/></Protected>} />
+            <Route path="/phone/chats" element={<Protected><ChatList/></Protected>} />
             <Route path="/scan" element={<Protected><QrProvider> <ScanPage/> </QrProvider></Protected>} />
             <Route path="/qr" element={<QrProvider><QRGenerator/></QrProvider>} />
             <Route path="/chat" element={<Protected><ChatPage/></Protected>} />

@@ -2,6 +2,7 @@
 import { ChatMessage } from "@/types/chat";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
+import { useAuth } from "./context/AuthContext";
 
 // export type ChatMessage = {
 //   id: string;
@@ -15,6 +16,7 @@ type HistoryResp = { messages: ChatMessage[]; nextCursor: string | null };
 
 export function useDirectChat(peerId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const {user} =useAuth();
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const chatSocketRef = useRef<Socket | null>(null);
@@ -52,7 +54,7 @@ export function useDirectChat(peerId: string) {
       const optimistic: ChatMessage = {
         id: tempId,
         chatId: "", // not needed on client
-        senderId: "me", // display-only
+        senderId: user?.id as string,
         text: trimmed,
         createdAt: new Date().toISOString(),
       };
@@ -69,7 +71,7 @@ export function useDirectChat(peerId: string) {
         const { message } = (await res.json()) as { message: ChatMessage };
         // swap optimistic with server message
         setMessages(prev =>
-          prev.map(msg => (msg.id === tempId ? msg : msg))
+          prev.map(msg => (msg.id === tempId ? message : msg))
         );
       } catch (e) {
         // remove optimistic on failure
@@ -82,7 +84,7 @@ export function useDirectChat(peerId: string) {
 
   // Socket join/real-time
 useEffect(() => {
-    const chatSocket = io({ path: "chat/socket.io", withCredentials: true });
+    const chatSocket = io("/chat",{ path: "/socket.io", withCredentials: true });
     chatSocketRef.current = chatSocket;
 
     chatSocket.emit("dm:join", { peerId });

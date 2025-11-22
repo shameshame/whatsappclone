@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useParams } from "react-router";
 import ChatList from "./ChatList";
 import WelcomePanel from "./WelcomePanel";
 import ChatWindow from "./ChatWindow";

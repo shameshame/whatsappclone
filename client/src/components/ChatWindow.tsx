@@ -15,22 +15,6 @@ import { on } from "events"
 import { useAuth } from "./context/AuthContext"
 
 
-const users = [
-  {
-    id: "userA",
-    name: "Alice",
-    avatar: "https://i.pravatar.cc/150?u=alice"
-  },
-  {
-    id: "userB",
-    name: "Bob",
-    avatar: "https://i.pravatar.cc/150?u=bob"
-  }
-];
-
-
-
-
 export default function ChatWindow() {
     const [input, setInput] = useState("")
     const { peerId } = useParams<{ peerId: string }>();
@@ -50,7 +34,7 @@ export default function ChatWindow() {
       } catch (error) {
         console.error("Failed to send message:", error);
       }   
-    }, [sendMessage,peerId]);
+    }, [sendMessage,peerId,input]);
     
   return (
     <div className="flex-1 bg-[#f7f1ea] flex flex-col  h-screen">
@@ -94,7 +78,7 @@ export default function ChatWindow() {
           }
          }
         />
-        <Button size="icon" onClick={onSendMessage}>
+        <Button size="icon" onClick={onSendMessage} disabled={!input.trim()}>
           <Send className="h-4 w-4" />
         </Button>
       </div>

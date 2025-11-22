@@ -48,7 +48,7 @@ export default function LoginPasskey() {
 
     const authResp = publicKeyCredentialToJSON(assertion);
     await postJSON<LoginVerifyOK>(`${DEFAULT_LOGIN_PASSKEY_API}/verify`,{ authResp });
-    navigate("/phone/chat", { replace: true });
+    navigate("/phone/chats", { replace: true });
   } catch (error: unknown) {
     const appErr = toAppError(error);
     
