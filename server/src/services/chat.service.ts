@@ -1,7 +1,7 @@
 import { RequestHandler } from "express";
 import { deterministicId } from "../chat/dm";
 import { PrismaClient } from "@prisma/client";
-import { allChatsQuery } from "../db/chat/chat";
+import { allChatsQuery, ensureDmChat } from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
 import { LastMessageSelected, ChatMemberWithUser} from "../db/chat/types";
 
@@ -13,9 +13,27 @@ const prisma = new PrismaClient();
 const CHAT_NS = "/chat";
 
 function emitToChatRoom(req: any, room: string, event: string, payload: any) {
-  const io = req.app.get("io");
-  // io.of will return the namespace (creates if missing) — same namespace instance used by requireSocketAuth
-  io?.of(CHAT_NS).to(room).emit(event, payload);
+  try{
+      const io = req.app.get("io");
+      // io.of will return the namespace (creates if missing) — same namespace instance used by requireSocketAuth
+      io?.of(CHAT_NS).to(room).emit(event, payload);
+    } catch(err){
+      console.warn("emitToChatRoom error:",err);
+    }
+}
+
+function inputCheckerForSendMessage(req:any,res:any):{ me: string; peerId: string; text: string } | null {
+   const me = req.user.id as string;
+  const { peerId } = req.params;
+  const text = String(req.body?.text ?? "").trim();
+  
+  if (!me) return res.sendStatus(401);
+  if (!peerId) return res.status(400).json({ ok: false, message: "bad-peer" });
+  if (!text) return res.status(400).json({ ok: false, message: "empty" });
+  if (text.length > 4000) return res.status(413).json({ ok: false, message: "too-long" });
+
+  return { me, peerId, text}
+
 }
 
 function populateLastMessageProp(lastMessage:LastMessageSelected|null) {
@@ -33,7 +51,6 @@ function populateLastMessageProp(lastMessage:LastMessageSelected|null) {
             handle: lastMessage.author.handle,
           },
     }
-
 }
 
 function populateParticipantsList(members:ChatMemberWithUser[]) {
@@ -118,32 +135,48 @@ export const getChatHistory :RequestHandler = async(req: any,res:any)=>{
 }
 
 export const sendMessage: RequestHandler = async (req, res) => {
-  const me = (req as any).user.id as string;
-  const { peerId } = req.params;
-  const { text } = (req.body ?? {}) as { text?: string };
+  const parsed = inputCheckerForSendMessage(req, res);
+  if (!parsed) return;
+  const { me, peerId, text } = parsed;
 
-  const trimmed = (text ?? "").trim();
-  if (!trimmed) return res.status(400).json({ ok: false, message: "empty" });
-  if (trimmed.length > 4000) return res.status(413).json({ ok: false, message: "too-long" });
+  try {
+    const {chatId,created} = await prisma.$transaction(async (transaction) => {
+      // Make sure chat + membership exist
+      const chatId = await ensureDmChat(transaction, me, peerId);
 
-  const chatId = deterministicId(me, peerId as string);
-  const created = await prisma.message.create({
-    data: { chatId, senderId: me, text: trimmed },
-  });
+      // Insert message
+      const created = await transaction.message.create({
+        data: {
+          chatId,
+          senderId: me,
+          text,
+          kind: "text",
+        },
+        select: {
+          id: true, text: true, kind: true, createdAt: true,
+          senderId: true,
+          author: { select: { id: true, displayName: true, handle: true } },
+        },
+      });
 
-  // fan-out via Socket.IO room
-  
-  const payload = { 
-                    id: created.id, chatId: created.chatId, senderId: created.senderId,
-                    text: created.text, createdAt: created.createdAt.toISOString(),
-                  };
-  
-  emitToChatRoom(req, chatId, "dm:new", payload);
-  res.json({
-    ok: true,
-    message: payload,
-  })
-}
+      // Update chat’s lastMessageAt for sorting
+      await transaction.chat.update({
+        where: { id: chatId },
+        data: { lastMessageAt: created.createdAt },
+      });
+
+      return { chatId, created };
+    });
+    
+    emitToChatRoom(req,chatId, "chat:message", { chatId, message: created });
+    
+    return res.json({ ok: true,chatId, message:created });
+  } catch (err) {
+    console.error("sendDmMessage error:", err);
+    return res.status(500).json({ ok: false, message: "send-failed" });
+  }
+};
+
 
 
 // PATCH /api/dm/:peerId/messages/:messageId  { content: string }
