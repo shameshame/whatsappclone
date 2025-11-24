@@ -1,28 +1,39 @@
-import { useState } from "react";
-import type { Chat } from "@/types/chat";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import ChatItem from "./ChatItem";
 import { ChatMore } from "./ChatMore";
 import { NewChatSticky } from "./NewChat";
-
-
-
-const allChats : Chat[] = [
-  {peerId:"1" ,name: "Корзина", messages: [{id:"1",text:"Севька сказал в кои-то веки они у нас,пусть они у нас побудут"}] },
-  { peerId:"2",name: "Верочка Харченкова", messages: [{id:"1",text:"С праздником, молодёжь…" }]},
-  { peerId:"3",name: "Анишичер", messages: [{id:"1",text:"У него посиделки, а у меня полежалки…"}] },
-  { peerId:"4",name: "Жопа Срычер", messages: [{id:"1",text:"Это не Витьки звонили, Машка сказала,что они не приезжали" }]},
-];
-
-
-
+import { httpErrorFromResponse } from "@/utilities/error-utils";
+import { ChatSummary } from "@shared/types/chatSummary";
 
 
 export default function ChatList(){
 
  const [searchTerm, setSearchTerm] = useState('');
+ const [allChats, setAllChats] = useState<ChatSummary[]>([]);
  const navigate = useNavigate();
  const here = useLocation().pathname;
+
+ useEffect(() => {
+    // Reset search term when component mounts
+    setSearchTerm('');
+  },[])
+
+  useEffect(() => {
+    const fetchChats = async () => {
+      try {
+        const response = await fetch('/api/chat/my-chats', { credentials: 'include' });
+        if (!response.ok) throw httpErrorFromResponse(response);
+        
+        const data = await response.json();
+        setAllChats(data.chats);
+      } catch (error) {
+        console.error('Failed to fetch chats:', error);
+      }
+    };    
+    fetchChats();
+  }, []);
+
 
  const filteredChats = allChats.filter(chat => {
     const term = searchTerm.toLowerCase();
@@ -71,11 +82,27 @@ export default function ChatList(){
         {searchTerm==='' 
          ? 
         <div className="mt-2 overflow-y-auto">
-          {allChats.map((chat) => (
-            <div role="button" key={chat.peerId} onClick={() => onChatClick(chat.peerId)} className="cursor-pointer">
-              <ChatItem name={chat.name} message={chat.messages[chat.messages.length-1]?.text} />
-            </div>
-          ))}
+          {allChats.map((chat) => {
+              const last = chat.lastMessage;
+
+              return (
+                <div
+                  role="button"
+                  key={chat.id}
+                  onClick={() => onChatClick(chat.id)}   // or getPeerId(chat) for DM
+                  className="cursor-pointer"
+                >
+                  <ChatItem
+                    name={chat.name ?? "Unnamed chat"}
+                    message={
+                      last?.isDeleted
+                        ? "Message deleted"
+                        : last?.text ?? ""
+                    }
+                  />
+                </div>
+              );
+            })}
         </div>
         :
         // If matches are found, render them, otherwise display an appropriate message

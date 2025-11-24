@@ -1,15 +1,8 @@
-import type { Message } from "./message";
+import { ChatMessage } from "@shared/types/chatMessage";
 
 export type Chat = {
   peerId: string;
   name: string;
-  messages: Message[];
+  messages: ChatMessage[];
 };
 
-export type ChatMessage = {
-  id: string;
-  chatId: string;
-  senderId: string;
-  text: string;
-  createdAt: string; // ISO
-};

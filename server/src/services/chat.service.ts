@@ -1,5 +1,5 @@
 import { RequestHandler } from "express";
-import { deterministicId } from "../chat/dm";
+import { deterministicId } from "@shared/chat/dmId";
 import { PrismaClient } from "@prisma/client";
 import { allChatsQuery, ensureDmChat } from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
@@ -168,7 +168,7 @@ export const sendMessage: RequestHandler = async (req, res) => {
       return { chatId, created };
     });
     
-    emitToChatRoom(req,chatId, "chat:message", { chatId, message: created });
+    emitToChatRoom(req,chatId, "dm:new", { chatId, message: created });
     
     return res.json({ ok: true,chatId, message:created });
   } catch (err) {

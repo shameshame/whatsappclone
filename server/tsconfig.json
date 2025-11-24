@@ -5,10 +5,10 @@
      "lib": ["ES2022"],
     "module": "CommonJS",
     "moduleResolution": "node",
-    "rootDir": "src",
+    "rootDir": "..",
     "outDir": "../dist/server",
     "types": ["node"],
     
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*","../shared/**/*"]
 }

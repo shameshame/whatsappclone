@@ -28,9 +28,7 @@
 
     /* Project Layout */
     "baseUrl": ".",                      // for absolute imports
-    "paths": {
-               // if you have a shared/ folder
-    },
+    "paths": {"@shared/*": ["shared/*"]},
 
     /* Build Optimizations */
     "skipLibCheck": true,

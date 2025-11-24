@@ -1,16 +1,9 @@
 // src/hooks/useDirectChat.ts
-import { ChatMessage } from "@/types/chat";
+import { ChatMessage } from "@shared/types/chatMessage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
+import { httpErrorFromResponse, toAppError } from "@/utilities/error-utils";
 import { useAuth } from "./context/AuthContext";
-
-// export type ChatMessage = {
-//   id: string;
-//   chatId: string;
-//   senderId: string;
-//   text: string;
-//   createdAt: string; // ISO
-// };
 
 type HistoryResp = { messages: ChatMessage[]; nextCursor: string | null };
 
@@ -67,20 +60,43 @@ export function useDirectChat(peerId: string) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: trimmed }),
         });
-        if (!res.ok) throw new Error(String(res.status));
+        if (!res.ok) throw await httpErrorFromResponse(res);
         const { message } = (await res.json()) as { message: ChatMessage };
         // swap optimistic with server message
         setMessages(prev =>
           prev.map(msg => (msg.id === tempId ? message : msg))
         );
-      } catch (e) {
+      } catch (error) {
         // remove optimistic on failure
         setMessages(prev => prev.filter(message => message.id !== tempId));
-        throw e;
+        throw error;
       }
     },
     [peerId]
   );
+
+  const deleteMessage = useCallback(async (chatId: string,messageId: string): Promise<void> => {
+   try {   
+      // optimistic remove
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      
+      const res = await fetch(
+        `/api/chat/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/delete`,
+       {method: "DELETE",credentials: "include",});
+
+      if (!res.ok) throw await httpErrorFromResponse(res);
+  
+    }catch (error:unknown) {
+      const appErr = toAppError(error);
+
+      // rollback on failure
+      setMessages(prev => prev); // or re-fetch chat, or restore from a backup list
+      console.error("Failed to delete message:", appErr);
+    }
+
+  },[peerId,setMessages])
+
+
 
   // Socket join/real-time
 useEffect(() => {
@@ -88,6 +104,8 @@ useEffect(() => {
     chatSocketRef.current = chatSocket;
 
     chatSocket.emit("dm:join", { peerId });
+
+    // Event handlers
 
     // New incoming message: append
     const onNewIncoming = (newIncoming: ChatMessage) => {
@@ -138,5 +156,5 @@ useEffect(() => {
 
   useEffect(() => { void loadInitial(); }, [loadInitial]);
 
-  return { messages, loading, loadMore, hasMore: !!nextCursor, sendMessage };
+  return { messages, loading, loadMore, hasMore: !!nextCursor, sendMessage,deleteMessageOnServer: deleteMessage };
 }

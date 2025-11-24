@@ -10,8 +10,8 @@ export const chatRouter = Router();
 chatRouter.get("/:peerId/history",requireAuth,getChatHistory)
 chatRouter.post("/:peerId/send",requireAuth,sendMessage)
 chatRouter.get("/my-chats",requireAuth,getAllMyChats)
-chatRouter.delete("/message/:messageId/delete",requireAuth,deleteMessage)
-chatRouter.put("/message/:messageId/edit",requireAuth,editMessage)
+chatRouter.delete("/messages/:messageId/delete",requireAuth,deleteMessage)
+chatRouter.put("/messages/:messageId/edit",requireAuth,editMessage)
 
 
 
