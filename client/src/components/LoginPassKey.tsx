@@ -10,6 +10,7 @@ import { toAppError } from "@/utilities/error-utils";
 import { Banner } from "./Banner";
 import { BannerData } from "@/utilities/banner-map";
 import { LoginVerifyOK } from "@/types/loginVerifyOk";
+import { useAuth } from "./context/AuthContext";
 
 type LoginIntent = "default" | "forcePicker";
 
@@ -18,6 +19,7 @@ export default function LoginPasskey() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [banner, setBanner] = useState<BannerData|null>(null);
+  const { refresh } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function LoginPasskey() {
 
     const authResp = publicKeyCredentialToJSON(assertion);
     await postJSON<LoginVerifyOK>(`${DEFAULT_LOGIN_PASSKEY_API}/verify`,{ authResp });
+    await refresh();
     navigate("/phone/chats", { replace: true });
   } catch (error: unknown) {
     const appErr = toAppError(error);

@@ -4,5 +4,6 @@ export type Chat = {
   peerId: string;
   name: string;
   messages: ChatMessage[];
+  members: string[];
 };
 

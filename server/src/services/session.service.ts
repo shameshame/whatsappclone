@@ -20,7 +20,12 @@ export  const getMe : RequestHandler = async (req, res) => {
     select: { id: true, displayName: true, handle: true, phoneE164: true, createdAt: true },
   });
   // (optional) add TTL so client can decide when to refresh UI
-  const ttl = await redis.ttl(`sess:${req.cookies.sid}`);
+  const sid = req.cookies.sid;
+  let ttl = -2;
+
+  if (sid) {
+    ttl = await redis.ttl(key(sid));  
+  }
   res.json({ ok: true, user, device, ttl });
 }; 
 

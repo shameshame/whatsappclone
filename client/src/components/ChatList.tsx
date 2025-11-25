@@ -5,11 +5,15 @@ import { ChatMore } from "./ChatMore";
 import { NewChatSticky } from "./NewChat";
 import { httpErrorFromResponse } from "@/utilities/error-utils";
 import { ChatSummary } from "@shared/types/chatSummary";
+import { useAuth } from "./context/AuthContext";
 
 
 export default function ChatList(){
 
  const [searchTerm, setSearchTerm] = useState('');
+ const {user} = useAuth(); 
+ const currentUserId = user?.id || '';
+
  const [allChats, setAllChats] = useState<ChatSummary[]>([]);
  const navigate = useNavigate();
  const here = useLocation().pathname;
@@ -37,14 +41,27 @@ export default function ChatList(){
 
  const filteredChats = allChats.filter(chat => {
     const term = searchTerm.toLowerCase();
-    const nameMatches = chat.name.toLowerCase().includes(term);
-    const messageMatches = chat.messages.some(msg =>
-      msg.text.toLowerCase().includes(term)
-    );
-    return nameMatches || messageMatches;
+    const peerName = getPeerName(chat, currentUserId).toLowerCase();
+    const lastMessage = chat.lastMessage?.text?.toLowerCase() ?? "";
+    
+    return (
+    peerName.includes(term) ||
+    lastMessage.includes(term)
+  );
   });
 
   const onChatClick = (peerId: string) => navigate(`/chat/${peerId}`,{ replace: true });
+
+  function getPeerName(chat: ChatSummary, currentUserId: string): string {
+  if (chat.type === "DM") {
+    const peer = chat.participants.find(participant => participant.id !== currentUserId);
+    if (!peer) return "";
+    return peer.displayName || peer.handle || "";
+  }
+
+  // For groups, fall back to chat name
+  return chat.name ?? "";
+}
  
  
  
@@ -84,16 +101,17 @@ export default function ChatList(){
         <div className="mt-2 overflow-y-auto">
           {allChats.map((chat) => {
               const last = chat.lastMessage;
-
+              let peerName = getPeerName(chat,currentUserId);
+              let peerId = chat.participants.find(p => p.displayName === peerName || p.handle === peerName)?.id || ''
               return (
                 <div
                   role="button"
                   key={chat.id}
-                  onClick={() => onChatClick(chat.id)}   // or getPeerId(chat) for DM
+                  onClick={() => onChatClick(peerId)}   // or getPeerId(chat) for DM
                   className="cursor-pointer"
                 >
                   <ChatItem
-                    name={chat.name ?? "Unnamed chat"}
+                    name={getPeerName(chat,currentUserId) ?? "Unnamed chat"}
                     message={
                       last?.isDeleted
                         ? "Message deleted"
@@ -107,18 +125,17 @@ export default function ChatList(){
         :
         // If matches are found, render them, otherwise display an appropriate message
         filteredChats.length 
-        ? filteredChats.map(chat => (
-          <li key={chat.peerId} className="p-4 bg-gray-100 rounded">
-            <p className="font-semibold mb-1">{chat.name}</p>
-            <ul className="text-sm text-gray-700 space-y-1">
-              {chat.messages.filter(msg =>msg.text.toLowerCase().includes(searchTerm.toLowerCase()))
-                .map(msg => (
-                  <li key={msg.id}>• {msg.text}</li>
-                ))} 
-            </ul>
-          </li>
-          
-        ))
+        ? filteredChats.map(chat =>{ 
+           let peerName = getPeerName(chat,currentUserId);
+           let peerId = chat.participants.find(p => p.displayName === peerName || p.handle === peerName)?.id || '';
+           return (<li key={peerId} className="p-4 bg-gray-100 rounded">
+                      <p className="font-semibold mb-1">{peerName}</p>
+                      <ul className="text-sm text-gray-700 space-y-1">
+                          <li>• {chat.lastMessage?.text}</li>
+                      </ul>
+                    </li>
+                  )
+          })
         :<li className="text-gray-400 italic">No chats found.</li>}
 
         <NewChatSticky/>

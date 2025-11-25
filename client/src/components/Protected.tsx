@@ -9,7 +9,9 @@ export default function Protected({ children }: { children: React.ReactNode }) {
 
   if (auth.status === "unauthenticated") {
    
-    here.startsWith("/phone")  ? <Navigate to="/phone/login" replace />: <Navigate to="/qr" replace />;
+    return here.startsWith("/phone")  
+    ? <Navigate to="/phone/login" replace />
+    : <Navigate to="/qr" replace />;
     
   }
   return <>{children}</>;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState,useCallback } from "react"
-import type { User } from "@/types/user"
+import type { User } from "@shared/types/user"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar,AvatarImage} from "@/components/ui/avatar"
@@ -21,10 +21,6 @@ export default function ChatWindow() {
     const {user}=useAuth();
     const { messages, loading, sendMessage,deleteMessageOnServer } = useDirectChat(peerId as string);
     const currentUser = user?.id
-
-
-
-
 
     const onSendMessage = useCallback(async () => {
       const text = input.trim();
