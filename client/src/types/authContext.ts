@@ -10,7 +10,7 @@ export type AuthStatus= {
 }
 
 export type AuthContextValue = AuthStatus & {
-  refresh: () => Promise<void>;
+  getMe: () => Promise<void>;
 };
 
 

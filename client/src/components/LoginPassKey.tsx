@@ -19,7 +19,7 @@ export default function LoginPasskey() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [banner, setBanner] = useState<BannerData|null>(null);
-  const { refresh } = useAuth();
+  const { getMe: refresh } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {

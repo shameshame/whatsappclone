@@ -7,10 +7,10 @@ import {RefreshCw, RotateCw} from "lucide-react"
 import { postJSON } from "@/utilities/passkeys";
 import { LoginVerifyOK } from "@/types/loginVerifyOk";
 import { isSessionId,isAuthCode } from "@/utilities/session";
-import { BannerData } from "@/utilities/banner-map";
 import { Processing } from "./Processing";
 import { SpinnerCustom } from "./ui/spinner";
 import { SessionTuple } from "@/types/sessionTuple";
+import { useAuth } from "./context/AuthContext";
 
 
 export default function QRGenerator(){
@@ -19,7 +19,7 @@ export default function QRGenerator(){
   
 //  Token context data
   const {session,createSessionToken} = useQR() 
-  // const {sid,ttl,challenge}=session as SessionTuple
+  const { getMe: refresh } = useAuth();
   
   const navigate = useNavigate();
   const [expired, setExpired] = useState(false);
@@ -31,7 +31,7 @@ export default function QRGenerator(){
   const [fading,setFading]=useState(false)
   const active = incomingSession ?? currentSession ?? session;
 
-  const [banner,setBanner]=useState<BannerData>()
+  
   
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const frame = useRef<number | null>(null);
@@ -75,9 +75,6 @@ const onRefresh = async () => {
     });
   };
 
-
-// 
-
 // 1) Create socket once
 useEffect(() => {
     const socket = io("/pair",{ path: "/socket.io",withCredentials:true }); // goes via Vite proxy
@@ -94,7 +91,7 @@ useEffect(() => {
       
           try {
             await postJSON<LoginVerifyOK>("/api/session/exchange", { sessionId, authCode });
-            // cookies are now set in the desktop browser
+            await refresh();
             navigate("/chat", { replace: true });
           } catch (error) {
              exchangingRef.current = false;
