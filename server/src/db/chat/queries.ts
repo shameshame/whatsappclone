@@ -7,6 +7,8 @@ export const chatWithMembersArgs = Prisma.validator<Prisma.ChatDefaultArgs>()({
     type: true,
     name: true,
     lastMessageAt: true,
+    createdAt: true,
+    updatedAt: true,
     members: {
       select: {
         role: true,

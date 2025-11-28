@@ -3,6 +3,7 @@ import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { initRedis} from "./redis";
 import { sessionRouter } from "./routes/session.routes";
+import { groupRouter } from "./routes/group.routes";
 import { authRouter } from "./routes/auth.routes";
 import { registryRouter } from "./routes/registration.routes";
 import { chatRouter } from "./routes/chat.routes";
@@ -64,6 +65,7 @@ app.use("/api/auth",authRouter)
 app.use("/api/registration",registryRouter)
 app.use("/api/chat",chatRouter)
 app.use("/api/users",userRouter)
+app.use("/api/group", groupRouter);
 
 
 // issue a CSRF cookie if it's missing

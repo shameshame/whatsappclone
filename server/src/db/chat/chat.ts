@@ -1,6 +1,6 @@
 import { PrismaClient,ChatType,Prisma } from "@prisma/client";
 import { chatWithMembersAndLastMessageArgs } from "./queries";
-import { deterministicId } from "../../chat/dm";
+import { deterministicId } from "@shared/chat/dmId";
 
 
 const prisma = new PrismaClient();
@@ -49,4 +49,17 @@ export async function ensureDmChat(prismaTx: PrismaClient |Prisma.TransactionCli
   });
 
   return id;
+}
+
+export async function assertMemberOfChat(
+  tx: Prisma.TransactionClient,
+  chatId: string,
+  userId: string
+) {
+  const member = await tx.chatMember.findUnique({
+    where: { chatId_userId: { chatId, userId } },
+    select: { role: true, chat: { select: { type: true } } },
+  });
+  if (!member) throw Object.assign(new Error("not-member"), { status: 403 });
+  return member; // includes role + chat.type, useful for perms
 }

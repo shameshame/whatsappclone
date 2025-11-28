@@ -4,7 +4,7 @@ import {getUserIdByCredentialId, updateCounter } from "../db/user";
 import type {RequestHandler } from "express";
 import { redis } from "../redis";
 import { issueAppSession, revokeSession } from "./auth.session.service";
-import { ctxCookieOpts, setSessionCookie,setCookie } from "../utils/cookies";
+import { ctxCookieOpts,setCookie } from "../utils/cookies";
 import { getCredentialById } from "../db/credential";
 import { getRpIdFromOrigin,getExpectedOrigin } from "../utils/origin";
 

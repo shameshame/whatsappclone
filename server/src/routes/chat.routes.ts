@@ -7,8 +7,8 @@ import { Router } from "express";
 export const chatRouter = Router();
 
 
-chatRouter.get("/:peerId/history",requireAuth,getChatHistory)
-chatRouter.post("/:peerId/send",requireAuth,sendMessage)
+chatRouter.get("/:chatId/history",requireAuth,getChatHistory)
+chatRouter.post("/:chatId/send",requireAuth,sendMessage)
 chatRouter.get("/my-chats",requireAuth,getAllMyChats)
 chatRouter.delete("/messages/:messageId/delete",requireAuth,deleteMessage)
 chatRouter.put("/messages/:messageId/edit",requireAuth,editMessage)

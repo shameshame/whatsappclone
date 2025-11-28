@@ -8,7 +8,7 @@ import { Send,VideoIcon,ChevronDown,MoreVertical  } from "lucide-react"
 import MessageBubble from "./MessageBubble"
 import { ChatMore } from "./ChatMore"
 import { useParams } from "react-router"
-import { useDirectChat } from "./UseDirectChat"
+import { useChat } from "./UseChat"
 import { ChatMessage } from "@shared/types/chatMessage";
 import {ChatTopMenu} from "./ChatTopMenu";
 import { on } from "events"
@@ -17,9 +17,9 @@ import { useAuth } from "./context/AuthContext"
 
 export default function ChatWindow() {
     const [input, setInput] = useState("")
-    const { peerId } = useParams<{ peerId: string }>();
+    const { chatId } = useParams<{ chatId: string }>();
     const {user}=useAuth();
-    const { messages, loading, sendMessage,deleteMessageOnServer } = useDirectChat(peerId as string);
+    const { messages, loading, sendMessage,deleteMessageOnServer } = useChat(chatId as string);
     const currentUser = user?.id
 
     const onSendMessage = useCallback(async () => {
@@ -33,7 +33,7 @@ export default function ChatWindow() {
       } catch (error) {
         console.error("Failed to send message:", error);
       }   
-    }, [sendMessage,peerId,input]);
+    }, [sendMessage,chatId,input]);
     
   return (
     <div className="flex-1 bg-[#f7f1ea] flex flex-col  h-screen">

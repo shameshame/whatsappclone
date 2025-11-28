@@ -1,29 +1,23 @@
 // components/NewChatSticky.tsx
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Plus, UserRound, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useUserDirectory } from "./useUserDirectory";
 import { Avatar, AvatarFallback } from "./ui/avatar";
+import { httpErrorFromResponse } from "@/utilities/error-utils";
 
-type UserLite = { id: string; displayName: string; handle?: string | null };
 
-type Props = {
-  
-  /** Optional hook to create/open the DM server-side before navigating */
-  onStartChat?: (peerId: string) => Promise<void> | void;
-};
 
-export function NewChatSticky({onStartChat }: Props) {
+
+
+export function NewChatSticky() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const{ usersExceptMe } = useUserDirectory();
   const navigate = useNavigate();
 
@@ -36,17 +30,31 @@ export function NewChatSticky({onStartChat }: Props) {
     );
   }, [usersExceptMe, query]);
 
-  async function handleChoose(id: string) {
-    setSelectedId(id);
-    // if you want “single-select” behavior, uncheck others implicitly
-    try {
-      if (onStartChat) await onStartChat(id);
-      navigate(`/chat/${encodeURIComponent(id)}`, { replace: false });
-    } finally {
-      setOpen(false);
-      // small UX nicety: reset selection for next time
-      setTimeout(() => setSelectedId(null), 200);
-    }
+  // async function handleChoose(id: string) {
+  //   setSelectedId(id);
+  //   // if you want “single-select” behavior, uncheck others implicitly
+  //   try {
+  //     if (onStartChat) await onStartChat(id);
+  //     navigate(`/chat/${encodeURIComponent(id)}`, { replace: false });
+  //   } finally {
+  //     setOpen(false);
+  //     // small UX nicety: reset selection for next time
+  //     setTimeout(() => setSelectedId(null), 200);
+  //   }
+  // }
+
+  async function onStartChat(peerId: string) {
+  // Ask server to create/ensure DM and give you chatId
+    const res = await fetch(`/api/chat/dm/${encodeURIComponent(peerId)}/open`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!res.ok) throw httpErrorFromResponse(res);
+    const data = await res.json() as { ok: boolean; chat: { id: string } };
+
+  // Navigate to /chat/:chatId
+    navigate(`/chat/${data.chat.id}`); //you should probably send peerId in navigate state too
+    setOpen(false);
   }
 
   return (
@@ -107,11 +115,7 @@ export function NewChatSticky({onStartChat }: Props) {
                 w-full flex items-center gap-3 rounded-lg px-3 py-2
                 hover:bg-muted/60 transition text-left
               "
-              onClick={async () => {
-                if (onStartChat) await onStartChat(user.id);
-                navigate(`/chat/${encodeURIComponent(user.id)}`);
-                setOpen(false);
-              }}
+              onClick={() => onStartChat(user.id)}
             >
               {/* Avatar circle (grey by default). Provide AvatarImage src if you have one */}
               <Avatar className="h-10 w-10">

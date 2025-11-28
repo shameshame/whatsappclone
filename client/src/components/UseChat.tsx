@@ -5,29 +5,31 @@ import { io, Socket } from "socket.io-client";
 import { httpErrorFromResponse, toAppError } from "@/utilities/error-utils";
 import { useAuth } from "./context/AuthContext";
 
+
 type HistoryResp = { messages: ChatMessage[]; nextCursor: string | null };
 
-export function useDirectChat(peerId: string) {
+export function useChat(chatId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const {user} =useAuth();
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const chatSocketRef = useRef<Socket | null>(null);
+  
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/chat/${encodeURIComponent(peerId)}/history?limit=30`, {
+    const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/history?limit=30`, {
       credentials: "include",
     });
     const data = (await res.json()) as HistoryResp;
     setMessages(data.messages);
     setNextCursor(data.nextCursor);
     setLoading(false);
-  }, [peerId]);
+  }, [chatId]);
 
   const loadMore = useCallback(async () => {
     if (!nextCursor) return;
-    const url = `/api/chat/${encodeURIComponent(peerId)}/history?limit=30&before=${encodeURIComponent(
+    const url = `/api/chat/${encodeURIComponent(chatId)}/history?limit=30&before=${encodeURIComponent(
       nextCursor
     )}`;
     const res = await fetch(url, { credentials: "include" });
@@ -35,7 +37,7 @@ export function useDirectChat(peerId: string) {
     // prepend older messages
     setMessages(prev => [...data.messages, ...prev]);
     setNextCursor(data.nextCursor);
-  }, [peerId, nextCursor]);
+  }, [chatId, nextCursor]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -54,7 +56,7 @@ export function useDirectChat(peerId: string) {
       setMessages(prev => [...prev, optimistic]);
 
       try {
-        const res = await fetch(`/api/chat/${encodeURIComponent(peerId)}/send`, {
+        const res = await fetch(`/api/chat/${encodeURIComponent(chatId as string)}/send`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -72,7 +74,7 @@ export function useDirectChat(peerId: string) {
         throw error;
       }
     },
-    [peerId]
+    [chatId]
   );
 
   const deleteMessage = useCallback(async (chatId: string,messageId: string): Promise<void> => {
@@ -94,7 +96,7 @@ export function useDirectChat(peerId: string) {
       console.error("Failed to delete message:", appErr);
     }
 
-  },[peerId,setMessages])
+  },[chatId,setMessages])
 
 
 
@@ -103,7 +105,7 @@ useEffect(() => {
     const chatSocket = io("/chat",{ path: "/socket.io", withCredentials: true });
     chatSocketRef.current = chatSocket;
 
-    chatSocket.emit("dm:join", { peerId });
+    chatSocket.emit("chat:join", {chatId });
 
     // Event handlers
 
@@ -138,21 +140,21 @@ useEffect(() => {
         }
     };
 
-    chatSocket.on("dm:new", onNewIncoming);
+    chatSocket.on("chat:message", (newIncoming: ChatMessage) => onNewIncoming(newIncoming));
     chatSocket.on("dm:update", onUpdate);
     chatSocket.on("dm:delete", onDelete);
     chatSocket.on("dm:sent", onSent);
 
     return () => {
-        chatSocket.emit("dm:leave", { peerId });
-        chatSocket.off("dm:new", onNewIncoming);
+        chatSocket.emit("chat:leave", {chatId }); //Check this line - should it be chatId or peerId?
+        chatSocket.off("chat:message", (newIncoming: ChatMessage) => onNewIncoming(newIncoming));
         chatSocket.off("dm:update", onUpdate);
         chatSocket.off("dm:delete", onDelete);
         chatSocket.off("dm:sent", onSent);
         chatSocket.disconnect();
         chatSocketRef.current = null;
     };
-}, [peerId]);
+}, [chatId]);
 
   useEffect(() => { void loadInitial(); }, [loadInitial]);
 
