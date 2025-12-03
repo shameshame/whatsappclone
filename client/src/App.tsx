@@ -32,7 +32,7 @@ function App() {
             <Route path="/scan" element={<Protected><QrProvider> <ScanPage/> </QrProvider></Protected>} />
             <Route path="/qr" element={<QrProvider><QRGenerator/></QrProvider>} />
             <Route path="/chat" element={<Protected><ChatPage/></Protected>} />
-            <Route path="/chat/:peerId" element={<Protected><ChatWindow/></Protected>}/>
+            <Route path="/chat/:chatId" element={<Protected><ChatWindow/></Protected>}/>
            
           </Routes>
         </AuthProvider>

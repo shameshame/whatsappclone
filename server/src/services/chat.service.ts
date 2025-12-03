@@ -26,11 +26,6 @@ function inputCheckerForSendMessage(req:any,res:any):{ me: string; peerId: strin
 
 }
 
-
-
-
-
-
 export const openOrCreateDm: RequestHandler = async (req, res) => {
   const me = (req as any).user.id as string;
   const { peerId } = req.params;
@@ -56,6 +51,8 @@ export const openOrCreateDm: RequestHandler = async (req, res) => {
     if (!chat) {
       return res.status(500).json({ ok: false, message: "chat-not-found" });
     }
+
+    
 
     return res.json({ ok: true, chat });
   } catch (err) {
@@ -106,11 +103,11 @@ export const getAllMyChats: RequestHandler = async (req, res,next) => {
 
 export const getChatHistory :RequestHandler = async(req: any,res:any)=>{
    const me = (req as any).user.id as string;
-  const { peerId } = req.params;
+  const { chatId } = req.params;
   const beforeISO = req.query.before as string | undefined;
   const limit = Math.min(Number(req.query.limit ?? 20), 100);
 
-  const chatId = deterministicId(me, peerId);
+  // const chatId = deterministicId(me, peerId);
   const before = new Date(beforeISO ?? Date.now());
 
   

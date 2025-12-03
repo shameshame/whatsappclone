@@ -1,4 +1,4 @@
-import { getChatHistory,sendMessage,getAllMyChats,deleteMessage,editMessage } from "../services/chat.service";
+import { getChatHistory,sendMessage,getAllMyChats,deleteMessage,editMessage,openOrCreateDm } from "../services/chat.service";
 import { requireAuth } from "../middleware/requireAuth";
 import { Router } from "express";
 
@@ -9,6 +9,7 @@ export const chatRouter = Router();
 
 chatRouter.get("/:chatId/history",requireAuth,getChatHistory)
 chatRouter.post("/:chatId/send",requireAuth,sendMessage)
+chatRouter.post("/dm/:peerId/open",requireAuth,openOrCreateDm)
 chatRouter.get("/my-chats",requireAuth,getAllMyChats)
 chatRouter.delete("/messages/:messageId/delete",requireAuth,deleteMessage)
 chatRouter.put("/messages/:messageId/edit",requireAuth,editMessage)

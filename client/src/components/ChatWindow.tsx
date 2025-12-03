@@ -1,17 +1,13 @@
-import { useEffect, useRef, useState,useCallback } from "react"
-import type { User } from "@shared/types/user"
+import { useState,useCallback } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar,AvatarImage} from "@/components/ui/avatar"
-import { ChatSearch } from "./ChatSearch";
-import { Send,VideoIcon,ChevronDown,MoreVertical  } from "lucide-react"
+import { Send} from "lucide-react"
 import MessageBubble from "./MessageBubble"
-import { ChatMore } from "./ChatMore"
 import { useParams } from "react-router"
 import { useChat } from "./UseChat"
 import { ChatMessage } from "@shared/types/chatMessage";
 import {ChatTopMenu} from "./ChatTopMenu";
-import { on } from "events"
 import { useAuth } from "./context/AuthContext"
 
 
@@ -19,7 +15,7 @@ export default function ChatWindow() {
     const [input, setInput] = useState("")
     const { chatId } = useParams<{ chatId: string }>();
     const {user}=useAuth();
-    const { messages, loading, sendMessage,deleteMessageOnServer } = useChat(chatId as string);
+    const { messages, loading, sendMessage,deleteMessageOnServer } = useChat(chatId);
     const currentUser = user?.id
 
     const onSendMessage = useCallback(async () => {
@@ -33,7 +29,7 @@ export default function ChatWindow() {
       } catch (error) {
         console.error("Failed to send message:", error);
       }   
-    }, [sendMessage,chatId,input]);
+    }, [sendMessage,input]);
     
   return (
     <div className="flex-1 bg-[#f7f1ea] flex flex-col  h-screen">
@@ -43,7 +39,7 @@ export default function ChatWindow() {
             <AvatarImage src="https://i.pravatar.cc/150?u=alice" className="w-full h-full object-cover"/>
           </Avatar>
           <span className="text-lg font-medium">Alice</span>
-         <ChatTopMenu messages={messages}/>
+            <ChatTopMenu messages={messages}/>
       </div>
       </div>
       

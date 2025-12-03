@@ -8,7 +8,7 @@ import { useAuth } from "./context/AuthContext";
 
 type HistoryResp = { messages: ChatMessage[]; nextCursor: string | null };
 
-export function useChat(chatId: string) {
+export function useChat(chatId: string | undefined) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const {user} =useAuth();
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -17,6 +17,8 @@ export function useChat(chatId: string) {
   
 
   const loadInitial = useCallback(async () => {
+    if (!chatId) return; 
+    
     setLoading(true);
     const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/history?limit=30`, {
       credentials: "include",
@@ -28,7 +30,7 @@ export function useChat(chatId: string) {
   }, [chatId]);
 
   const loadMore = useCallback(async () => {
-    if (!nextCursor) return;
+    if (!chatId || !nextCursor) return;
     const url = `/api/chat/${encodeURIComponent(chatId)}/history?limit=30&before=${encodeURIComponent(
       nextCursor
     )}`;
@@ -41,6 +43,8 @@ export function useChat(chatId: string) {
 
   const sendMessage = useCallback(
     async (text: string) => {
+      if (!chatId) throw new Error("No chat selected");
+      
       const trimmed = text.trim();
       if (!trimmed) return;
 
@@ -140,14 +144,14 @@ useEffect(() => {
         }
     };
 
-    chatSocket.on("chat:message", (newIncoming: ChatMessage) => onNewIncoming(newIncoming));
+    chatSocket.on("chat:message", onNewIncoming);
     chatSocket.on("dm:update", onUpdate);
     chatSocket.on("dm:delete", onDelete);
     chatSocket.on("dm:sent", onSent);
 
     return () => {
         chatSocket.emit("chat:leave", {chatId }); //Check this line - should it be chatId or peerId?
-        chatSocket.off("chat:message", (newIncoming: ChatMessage) => onNewIncoming(newIncoming));
+        chatSocket.off("chat:message", onNewIncoming);
         chatSocket.off("dm:update", onUpdate);
         chatSocket.off("dm:delete", onDelete);
         chatSocket.off("dm:sent", onSent);

@@ -30,18 +30,7 @@ export function NewChatSticky() {
     );
   }, [usersExceptMe, query]);
 
-  // async function handleChoose(id: string) {
-  //   setSelectedId(id);
-  //   // if you want “single-select” behavior, uncheck others implicitly
-  //   try {
-  //     if (onStartChat) await onStartChat(id);
-  //     navigate(`/chat/${encodeURIComponent(id)}`, { replace: false });
-  //   } finally {
-  //     setOpen(false);
-  //     // small UX nicety: reset selection for next time
-  //     setTimeout(() => setSelectedId(null), 200);
-  //   }
-  // }
+  
 
   async function onStartChat(peerId: string) {
   // Ask server to create/ensure DM and give you chatId
@@ -49,8 +38,12 @@ export function NewChatSticky() {
       method: "POST",
       credentials: "include",
     });
-    if (!res.ok) throw httpErrorFromResponse(res);
+    if (!res.ok) throw await httpErrorFromResponse(res);
     const data = await res.json() as { ok: boolean; chat: { id: string } };
+
+   if(data.chat.id===undefined){
+    throw new Error("Chat ID is undefined");
+   }
 
   // Navigate to /chat/:chatId
     navigate(`/chat/${data.chat.id}`); //you should probably send peerId in navigate state too
