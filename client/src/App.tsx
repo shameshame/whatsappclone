@@ -11,6 +11,7 @@ import Protected from "./components/Protected";
 import { ConnectedDevices } from "./components/ConnectedDevices";
 import ChatPage from "./components/ChatPage";
 import ChatList from "./components/ChatList";
+import { ChatListProvider } from "./components/context/ChatListContext";
 
 
 
@@ -22,7 +23,9 @@ function App() {
   return (
     <div className="flex  w-full h-screen bg-[#F5F5DC]">
      <BrowserRouter>
+      
         <AuthProvider>
+           <ChatListProvider>
           <Routes>
             <Route path="/" element={<Home/>}/>
             <Route path="/register" element={<CreateAccount/>} />
@@ -35,7 +38,9 @@ function App() {
             <Route path="/chat/:chatId" element={<Protected><ChatWindow/></Protected>}/>
            
           </Routes>
+          </ChatListProvider>
         </AuthProvider>
+       
       </BrowserRouter>
     
 

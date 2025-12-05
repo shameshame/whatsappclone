@@ -3,7 +3,8 @@ import { deterministicId } from "@shared/chat/dmId";
 import { PrismaClient } from "@prisma/client";
 import { allChatsQuery, assertMemberOfChat, ensureDmChat } from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
-import { emitToChatRoom, populateLastMessageProp, populateParticipantsList } from "../chat/helpers";
+import { emitToChatRoom,toChatSummary } from "../chat/helpers";
+
 
 
 type ChatIdParams = { chatId: string };
@@ -35,26 +36,10 @@ export const openOrCreateDm: RequestHandler = async (req, res) => {
   }
 
   try {
-    const chatId = await ensureDmChat(prisma, me, peerId);
+    const dmChat = await ensureDmChat(prisma, me, peerId);
+    const summary = toChatSummary(dmChat, me);
 
-    const chat = await prisma.chat.findUnique({
-      where: { id: chatId },
-      select: {
-        id: true,
-        type: true,
-        name: true,
-        lastMessageAt: true,
-        // you can also select members / lastMessage if you want
-      },
-    });
-
-    if (!chat) {
-      return res.status(500).json({ ok: false, message: "chat-not-found" });
-    }
-
-    
-
-    return res.json({ ok: true, chat });
+    return res.json({ ok: true, chat: summary });
   } catch (err) {
     console.error("openOrCreateDm error:", err);
     return res.status(500).json({ ok: false, message: "dm-init-failed" });
@@ -70,29 +55,7 @@ export const getAllMyChats: RequestHandler = async (req, res,next) => {
     const chats = await allChatsQuery(me);
     
     // Shape data into a clean payload for the client
-    const payload = chats.map(chat => {
-      const lastMessage = chat.messages[0] ?? null;
-      const myMemberRow = chat.members.find(member => member.user.id === me) || null;
-
-      return {
-        id: chat.id,
-        type: chat.type,              // "DM" | "GROUP"
-        name: chat.name,
-        createdAt: chat.createdAt,
-        updatedAt: chat.updatedAt,
-        lastMessageAt: chat.lastMessageAt,
-        lastMessage: populateLastMessageProp(lastMessage),
-
-        // every participant
-        participants: populateParticipantsList(chat.members),
-
-        // info specific to *this* user
-        me: myMemberRow && {
-          role: myMemberRow.role,
-          unreadCount: myMemberRow.unreadCount,
-        },
-      };
-     });
+    const payload = chats.map(chat => toChatSummary(chat, me));
     res.json({ chats: payload });
   } catch (err) {
     next(err);

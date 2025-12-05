@@ -1,9 +1,19 @@
-import { PrismaClient,ChatType,Prisma } from "@prisma/client";
+import { PrismaClient,ChatType,Prisma, ChatMemberRole } from "@prisma/client";
 import { chatWithMembersAndLastMessageArgs } from "./queries";
 import { deterministicId } from "@shared/chat/dmId";
+import { buildMemberRows } from "server/src/chat/helpers";
+import { ChatWithSummaryRelations } from "./types";
+
 
 
 const prisma = new PrismaClient();
+
+type EnsureChatArgs = {
+  id: string;
+  type: ChatType;
+  name?: string | null;
+  members: { userId: string; role: ChatMemberRole }[];
+};
 
 
 
@@ -23,32 +33,66 @@ export const allChatsQuery = async (userId:string)=> {
     });
     
     return chats;
-
 }
 
-export async function ensureDmChat(prismaTx: PrismaClient |Prisma.TransactionClient, user1: string, user2: string) {
+//If you only care about id in some places,then your existing code that only needs the chatId can keep its old style
+async function ensureDmChatId(
+  tx: PrismaClient | Prisma.TransactionClient,
+  user1: string,
+  user2: string
+): Promise<string> {
+  const chat = await ensureDmChat(tx, user1, user2);
+  return chat.id;
+}
+
+async function ensureChatWithMembers(
+  tx: PrismaClient | Prisma.TransactionClient,
+  { id, type, name = null, members }: EnsureChatArgs
+): Promise<ChatWithSummaryRelations> {
+  // 1) Upsert the chat shell (works for DM or GROUP)
+  await tx.chat.upsert({
+    where: { id },
+    create: { id, type, name },
+    update: { name }, // for DM you can also leave {} if you never change name
+  });
+
+  // 2) Ensure all ChatMember rows exist
+  await tx.chatMember.createMany({
+    data: members.map(m => ({
+      chatId: id,
+      userId: m.userId,
+      role: m.role,
+    })),
+    skipDuplicates: true,
+  });
+
+  // 3) Return with members + last message
+  return tx.chat.findUniqueOrThrow({
+    where: { id },
+    ...chatWithMembersAndLastMessageArgs,
+  });
+}
+
+
+
+
+export async function ensureDmChat(
+  tx: PrismaClient | Prisma.TransactionClient,
+  user1: string,
+  user2: string
+): Promise<ChatWithSummaryRelations> {
   const id = deterministicId(user1, user2);
 
-  // 1) Upsert the Chat
-  await prismaTx.chat.upsert({
-    where: { id },
-    create: { id, type: ChatType.DM },
-    update: {}, // nothing to update for DM shell
-  });
+  const members: { userId: string; role: ChatMemberRole }[] = [
+    { userId: user1, role: ChatMemberRole.MEMBER },
+    { userId: user2, role: ChatMemberRole.MEMBER },
+  ];
 
-  // 2) Ensure both ChatMember rows exist
-  await prismaTx.chatMember.upsert({
-    where: { chatId_userId: { chatId: id, userId: user1 } },
-    create: { chatId: id, userId: user1 },
-    update: {},
+  return ensureChatWithMembers(tx, {
+    id,
+    type: ChatType.DM,
+    members,
   });
-  await prismaTx.chatMember.upsert({
-    where: { chatId_userId: { chatId: id, userId: user2 } },
-    create: { chatId: id, userId: user2 },
-    update: {},
-  });
-
-  return id;
 }
 
 export async function assertMemberOfChat(
@@ -62,4 +106,20 @@ export async function assertMemberOfChat(
   });
   if (!member) throw Object.assign(new Error("not-member"), { status: 403 });
   return member; // includes role + chat.type, useful for perms
+}
+
+
+
+
+export async function upsertGroupChat(members: string[], me: string,name: string):Promise<ChatWithSummaryRelations> {
+
+   return prisma.$transaction(tx =>
+    ensureChatWithMembers(tx, {
+      id: crypto.randomUUID(),
+      type: ChatType.GROUP,
+      name,
+      members: buildMemberRows("", me, members), // chatId will be set in ensureChatWithMembers
+    })
+  );
+
 }

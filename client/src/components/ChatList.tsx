@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import ChatItem from "./ChatItem";
 import { ChatMore } from "./ChatMore";
-import { NewChatSticky } from "./NewChat";
+import { NewChat } from "./NewChat";
 import { httpErrorFromResponse } from "@/utilities/error-utils";
 import { ChatSummary } from "@shared/types/chatSummary";
 import { useAuth } from "./context/AuthContext";
+import { io } from "socket.io-client";
 
 
 export default function ChatList(){
@@ -17,6 +18,14 @@ export default function ChatList(){
  const [allChats, setAllChats] = useState<ChatSummary[]>([]);
  const navigate = useNavigate();
  const here = useLocation().pathname;
+
+
+ const onChatCreated = ({ chat }: { chat: ChatSummary }) => {
+      setAllChats(prev => {
+        if (prev.some(chat => chat.id === chat.id)) return prev;
+        return [chat, ...prev];
+      });
+  };
 
  useEffect(() => {
     // Reset search term when component mounts
@@ -38,6 +47,21 @@ export default function ChatList(){
     fetchChats();
   }, []);
 
+  useEffect(() => {
+    const socket = io("/chat", { path: "/socket.io", withCredentials: true });
+
+    
+
+    socket.on("chat:created", onChatCreated);
+
+    return () => {
+      socket.off("chat:created", onChatCreated);
+      socket.disconnect();
+    };
+  }, []);
+
+
+
 
  const filteredChats = allChats.filter(chat => {
     const term = searchTerm.toLowerCase();
@@ -50,17 +74,17 @@ export default function ChatList(){
   );
   });
 
-  const onChatClick = (peerId: string) => navigate(`/chat/${peerId}`,{ replace: true });
+  const onChatClick = (chatId: string) => navigate(`/chat/${chatId}`);
 
   function getPeerName(chat: ChatSummary, currentUserId: string): string {
-  if (chat.type === "DM") {
-    const peer = chat.participants.find(participant => participant.id !== currentUserId);
-    if (!peer) return "";
-    return peer.displayName || peer.handle || "";
-  }
+    if (chat.type === "DM") {
+      const peer = chat.participants.find(participant => participant.id !== currentUserId);
+      if (!peer) return "";
+      return peer.displayName || peer.handle || "";
+    }
 
-  // For groups, fall back to chat name
-  return chat.name ?? "";
+    // For groups, fall back to chat name
+    return chat.name ?? "";
 }
  
  
@@ -101,13 +125,12 @@ export default function ChatList(){
         <div className="mt-2 overflow-y-auto">
           {allChats.map((chat) => {
               const last = chat.lastMessage;
-              let peerName = getPeerName(chat,currentUserId);
-              let peerId = chat.participants.find(p => p.displayName === peerName || p.handle === peerName)?.id || ''
+             
               return (
                 <div
                   role="button"
                   key={chat.id}
-                  onClick={() => onChatClick(peerId)}   // or getPeerId(chat) for DM
+                  onClick={() => onChatClick(chat.id)}   // or getPeerId(chat) for DM
                   className="cursor-pointer"
                 >
                   <ChatItem
@@ -138,7 +161,7 @@ export default function ChatList(){
           })
         :<li className="text-gray-400 italic">No chats found.</li>}
 
-        <NewChatSticky/>
+        <NewChat/>
         
         </div>
 

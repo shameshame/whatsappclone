@@ -1,7 +1,7 @@
 // components/NewChatSticky.tsx
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
@@ -10,14 +10,20 @@ import { cn } from "@/lib/utils";
 import { useUserDirectory } from "./useUserDirectory";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { httpErrorFromResponse } from "@/utilities/error-utils";
+import { CreateGroupDialog } from "./CreateGroupDialog";
+
+import { useChats } from "./context/ChatListContext";
+import { ChatSummary } from "@shared/types/chatSummary";
 
 
 
 
 
-export function NewChatSticky() {
+export function NewChat() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const { addOrUpdateChat } = useChats();
   const{ usersExceptMe } = useUserDirectory();
   const navigate = useNavigate();
 
@@ -39,18 +45,26 @@ export function NewChatSticky() {
       credentials: "include",
     });
     if (!res.ok) throw await httpErrorFromResponse(res);
-    const data = await res.json() as { ok: boolean; chat: { id: string } };
+    const data = await res.json() as { ok: boolean; chat:ChatSummary}; 
+    
 
    if(data.chat.id===undefined){
     throw new Error("Chat ID is undefined");
    }
+    addOrUpdateChat(data.chat);  // update chat list in UI
 
   // Navigate to /chat/:chatId
-    navigate(`/chat/${data.chat.id}`); //you should probably send peerId in navigate state too
+    navigate(`/chat/${data.chat.id}`); 
     setOpen(false);
   }
 
+  function onNewGroupClick() {
+    setGroupDialogOpen(true);     // ⬅️ open dialog
+  }
+
   return (
+    
+    <>
     <div
       className={cn(
         "fixed bottom-4 right-4 z-50",
@@ -72,6 +86,40 @@ export function NewChatSticky() {
             <SheetTitle>Start a new chat</SheetTitle>
             <SheetDescription>Select a person to open a direct message.</SheetDescription>
           </SheetHeader>
+
+          {/* NEW GROUP ROW */}
+  <div className="px-4 pt-2 pb-1">
+    <button
+      type="button"
+      onClick={onNewGroupClick}
+      className="
+        w-full flex items-center gap-3 rounded-lg px-2 py-2
+        hover:bg-muted/60 transition text-left
+      "
+    >
+      {/* dark-green circle */}
+      <div
+        className="
+          h-9 w-9 rounded-full 
+          bg-emerald-700 text-white 
+          flex items-center justify-center
+          shadow-sm
+        "
+      >
+        <Users className="h-4 w-4" />
+      </div>
+
+      <div className="flex flex-col">
+        <span className="text-sm font-medium">New group</span>
+        <span className="text-xs text-muted-foreground">
+          Create a group chat with multiple people
+        </span>
+      </div>
+    </button>
+  </div>
+
+
+
 
           {/* Search */}
           <div className="px-4 py-3">
@@ -134,5 +182,15 @@ export function NewChatSticky() {
         </SheetContent>
       </Sheet>
     </div>
+    
+    {/* Group creation dialog */}
+      <CreateGroupDialog
+        open={groupDialogOpen}
+        onOpenChange={setGroupDialogOpen}
+        users={usersExceptMe}
+      />
+    
+    
+    </>
   );
 }

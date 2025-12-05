@@ -23,6 +23,13 @@ export function useChat(chatId: string | undefined) {
     const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/history?limit=30`, {
       credentials: "include",
     });
+    
+    if(!res.ok){
+      setLoading(false);
+      throw await httpErrorFromResponse(res);
+    }
+
+
     const data = (await res.json()) as HistoryResp;
     setMessages(data.messages);
     setNextCursor(data.nextCursor);
@@ -150,7 +157,7 @@ useEffect(() => {
     chatSocket.on("dm:sent", onSent);
 
     return () => {
-        chatSocket.emit("chat:leave", {chatId }); //Check this line - should it be chatId or peerId?
+        chatSocket.emit("chat:leave", {chatId }); 
         chatSocket.off("chat:message", onNewIncoming);
         chatSocket.off("dm:update", onUpdate);
         chatSocket.off("dm:delete", onDelete);

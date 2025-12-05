@@ -1,5 +1,6 @@
 import { ChatMemberRole } from "@prisma/client";
-import { ChatMemberWithUser, LastMessageSelected } from "../db/chat/types";
+import { ChatMemberWithUser, ChatWithSummaryRelations, LastMessageSelected } from "../db/chat/types";
+import { ChatSummary } from "@shared/types/chatSummary";
 
 const CHAT_NS = "/chat";
 
@@ -44,8 +45,8 @@ export function populateLastMessageProp(lastMessage:LastMessageSelected|null) {
           id: lastMessage.id,
           text: lastMessage.isDeleted ? null : lastMessage.text,
           kind: lastMessage.kind,
-          createdAt: lastMessage.createdAt,
-          editedAt: lastMessage.editedAt,
+          createdAt: lastMessage.createdAt.toISOString(),
+          editedAt: lastMessage.editedAt?.toISOString() || null,
           isDeleted: lastMessage.isDeleted,
           sender: {
             id: lastMessage.author.id,
@@ -53,4 +54,31 @@ export function populateLastMessageProp(lastMessage:LastMessageSelected|null) {
             handle: lastMessage.author.handle,
           },
     }
+}
+
+export function toChatSummary(
+  chat: ChatWithSummaryRelations,
+  meId: string
+): ChatSummary {
+  const lastMessage = chat.messages[0] ?? null;
+  const myMember = chat.members.find(member => member.user.id === meId) ?? null;
+
+  return {
+    id: chat.id,
+    type: chat.type, // "DM" | "GROUP"
+    name: chat.name,
+    createdAt: chat.createdAt.toISOString(),
+    updatedAt: chat.updatedAt.toISOString(),
+    lastMessageAt: chat.lastMessageAt
+      ? chat.lastMessageAt.toISOString()
+      : null,
+    lastMessage: populateLastMessageProp(lastMessage),
+    participants: populateParticipantsList(chat.members),
+    me: myMember
+      ? {
+          role: myMember.role,
+          unreadCount: myMember.unreadCount,
+        }
+      : null,
+  };
 }

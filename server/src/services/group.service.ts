@@ -2,12 +2,10 @@
 
 import { RequestHandler } from "express";
 import { PrismaClient} from "@prisma/client";
-import { emitToChatRoom, populateParticipantsList } from "../chat/helpers";
-import {buildMemberRows} from "../chat/helpers";
-import { chatWithMembersArgs } from "../db/chat/queries";
-import { ChatSummary } from "@shared/types/chatSummary";
+import { emitToChatRoom,toChatSummary } from "../chat/helpers";
+import { upsertGroupChat } from "../db/chat/chat";
 
-const prisma = new PrismaClient();
+export const prisma = new PrismaClient();
 
 
 function nameValidation(res:any,name: string): string {
@@ -34,48 +32,16 @@ export const createGroup: RequestHandler = async (req, res) => {
 
   // ensure creator is included and unique
   const members = Array.from(new Set([me, ...memberIds].filter(Boolean)));
+  const groupChat = await upsertGroupChat(members, me, trimmedName);
 
-  const chatWithMembers = await prisma.$transaction(async (tx) => {
-    const chat = await tx.chat.create({
-      data: { id: crypto.randomUUID(), type: "GROUP", name: trimmedName},
-      select: { id: true, type: true, name: true, createdAt: true },
-    });
-
-    // creator is ADMIN, others MEMBER
-    await tx.chatMember.createMany({
-      data: buildMemberRows(chat.id, me, members),
-      skipDuplicates: true,
-    });
-
-    return tx.chat.findUniqueOrThrow({
-        where: { id: chat.id },
-        ...chatWithMembersArgs,
-    });
-
-
-  });
-  const myMember = chatWithMembers.members.find(m => m.user.id === me) ?? null;
+  if (!groupChat) return res.status(500).json({ ok: false, message: "group-creation-failed" });
   
-  const summary: ChatSummary = {
-      id: chatWithMembers.id,
-      type: chatWithMembers.type,          // "GROUP"
-      name: chatWithMembers.name,
-      createdAt: chatWithMembers.createdAt.toISOString(),
-      updatedAt: chatWithMembers.updatedAt.toISOString(),
-      lastMessageAt: chatWithMembers.lastMessageAt? chatWithMembers.lastMessageAt.toISOString(): null,
-      // brand new group → no messages yet
-      lastMessage: null,
-      participants: populateParticipantsList(chatWithMembers.members),
-      me: myMember
-        ? {
-            role: myMember.role,
-            unreadCount: myMember.unreadCount,
-          }
-        : null,
-    };
+ 
+  
+  const summary=toChatSummary(groupChat, me);
 
 
-  emitToChatRoom(req, chatWithMembers.id, "chat:created", { chat: summary });
+  emitToChatRoom(req, groupChat.id, "chat:created", { chat: summary });
 
-  res.json({ ok: true, chat: chatWithMembers });
+  res.json({ ok: true, chat: summary });
 };
