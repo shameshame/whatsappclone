@@ -14,6 +14,7 @@ import { requireSocketAuth } from "./middleware/socketAuth";
 
 import cors from "cors";
 import { randomBytes } from "crypto";
+import { attachChatNamespaceHandlers } from "./chat/chatNsHandlers";
 
 
 
@@ -30,7 +31,7 @@ const chatNamespace = io.of("/chat");   // protected, for chat sockets
 
 // protect chat namespace only
 requireSocketAuth(chatNamespace);
-
+attachChatNamespaceHandlers(chatNamespace);
 
 
 
@@ -108,8 +109,4 @@ pairNamespace.on("connection", (socket) => {
 });
 
 
-// chat namespace handlers
-chatNamespace.on("connection", (socket) => {
-  console.log("chat namespace connected", socket.id, (socket as any).user?.id);
-  // chat handlers...
-});
+

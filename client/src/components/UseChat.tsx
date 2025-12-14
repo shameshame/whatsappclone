@@ -1,173 +1,211 @@
 // src/hooks/useDirectChat.ts
 import { ChatMessage } from "@shared/types/chatMessage";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import { httpErrorFromResponse, toAppError } from "@/utilities/error-utils";
+import { httpErrorFromResponse } from "@/utilities/error-utils";
 import { useAuth } from "./context/AuthContext";
-
+import { withAuthGuard } from "@/utilities/authErrorBoundary";
 
 type HistoryResp = { messages: ChatMessage[]; nextCursor: string | null };
 
+// Socket payloads (match these on server)
+type ChatMessageEvent = { chatId: string; message: ChatMessage; tempId?: string };
+type ChatDeletedEvent = { chatId: string; ids: string[] };
+type ChatUpdatedEvent = { chatId: string; message: ChatMessage };
+
+const HISTORY_LIMIT = 30;
+
 export function useChat(chatId: string | undefined) {
+  const { user, forceLogout } = useAuth();
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const {user} =useAuth();
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const chatSocketRef = useRef<Socket | null>(null);
-  
+  const [loading, setLoading] = useState(false);
 
-  const loadInitial = useCallback(async () => {
-    if (!chatId) return; 
-    
-    setLoading(true);
-    const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/history?limit=30`, {
-      credentials: "include",
+  const socketRef = useRef<Socket | null>(null);
+  const lastMessagesRef = useRef<ChatMessage[]>([]);
+  useEffect(() => {
+    lastMessagesRef.current = messages;
+  }, [messages]);
+
+  // Keep these stable and reusable
+  const authedFetchJSON = useCallback(
+    <T,>(fn: () => Promise<T>) => withAuthGuard(fn, forceLogout),
+    [forceLogout]
+  );
+
+  const loadInitial = useCallback(() => {
+    if (!chatId) return Promise.resolve();
+
+    return authedFetchJSON(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/chat/${encodeURIComponent(chatId)}/history?limit=${HISTORY_LIMIT}`,
+          { credentials: "include" }
+        );
+        if (!res.ok) throw await httpErrorFromResponse(res);
+
+        const data = (await res.json()) as HistoryResp;
+        setMessages(data.messages);
+        setNextCursor(data.nextCursor);
+      } finally {
+        setLoading(false);
+      }
     });
-    
-    if(!res.ok){
-      setLoading(false);
-      throw await httpErrorFromResponse(res);
-    }
+  }, [chatId, authedFetchJSON]);
 
+  const loadMore = useCallback(() => {
+    if (!chatId || !nextCursor) return Promise.resolve();
 
-    const data = (await res.json()) as HistoryResp;
-    setMessages(data.messages);
-    setNextCursor(data.nextCursor);
-    setLoading(false);
-  }, [chatId]);
+    return authedFetchJSON(async () => {
+      const url =
+        `/api/chat/${encodeURIComponent(chatId)}/history` +
+        `?limit=${HISTORY_LIMIT}&before=${encodeURIComponent(nextCursor)}`;
 
-  const loadMore = useCallback(async () => {
-    if (!chatId || !nextCursor) return;
-    const url = `/api/chat/${encodeURIComponent(chatId)}/history?limit=30&before=${encodeURIComponent(
-      nextCursor
-    )}`;
-    const res = await fetch(url, { credentials: "include" });
-    const data = (await res.json()) as HistoryResp;
-    // prepend older messages
-    setMessages(prev => [...data.messages, ...prev]);
-    setNextCursor(data.nextCursor);
-  }, [chatId, nextCursor]);
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw await httpErrorFromResponse(res);
+
+      const data = (await res.json()) as HistoryResp;
+      setMessages(prev => [...data.messages, ...prev]);
+      setNextCursor(data.nextCursor);
+    });
+  }, [chatId, nextCursor, authedFetchJSON]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
-      if (!chatId) throw new Error("No chat selected");
-      
-      const trimmed = text.trim();
-      if (!trimmed) return;
+    (text: string) => {
+      if (!chatId) return Promise.reject(new Error("No chat selected"));
 
-      // optimistic insert
+      const trimmed = text.trim();
+      if (!trimmed) return Promise.resolve();
+
       const tempId = `tmp:${crypto.randomUUID()}`;
+
       const optimistic: ChatMessage = {
         id: tempId,
-        chatId: "", // not needed on client
+        chatId,
         senderId: user?.id as string,
         text: trimmed,
         createdAt: new Date().toISOString(),
       };
+
+      // optimistic insert
       setMessages(prev => [...prev, optimistic]);
 
-      try {
-        const res = await fetch(`/api/chat/${encodeURIComponent(chatId as string)}/send`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: trimmed }),
-        });
-        if (!res.ok) throw await httpErrorFromResponse(res);
-        const { message } = (await res.json()) as { message: ChatMessage };
-        // swap optimistic with server message
-        setMessages(prev =>
-          prev.map(msg => (msg.id === tempId ? message : msg))
-        );
-      } catch (error) {
-        // remove optimistic on failure
-        setMessages(prev => prev.filter(message => message.id !== tempId));
-        throw error;
-      }
+      return authedFetchJSON(async () => {
+        try {
+          const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/send`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: trimmed, tempId }),
+          });
+
+          if (!res.ok) throw await httpErrorFromResponse(res);
+
+          const { message } = (await res.json()) as { message: ChatMessage };
+
+          // swap optimistic with server message
+          setMessages(prev => prev.map(m => (m.id === tempId ? message : m)));
+        } catch (err) {
+          // rollback optimistic on failure
+          setMessages(prev => prev.filter(m => m.id !== tempId));
+          throw err;
+        }
+      });
     },
-    [chatId]
+    [chatId, user?.id, authedFetchJSON]
   );
 
-  const deleteMessage = useCallback(async (chatId: string,messageId: string): Promise<void> => {
-   try {   
+  const deleteMessage = useCallback(
+    (messageId: string) => {
+      if (!chatId) return Promise.reject(new Error("No chat selected"));
+
+      // snapshot BEFORE optimistic change
+      const snapshot = lastMessagesRef.current;
+
       // optimistic remove
-      setMessages(prev => prev.filter(msg => msg.id !== messageId));
-      
-      const res = await fetch(
-        `/api/chat/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/delete`,
-       {method: "DELETE",credentials: "include",});
+      setMessages(prev => prev.filter(m => m.id !== messageId));
 
-      if (!res.ok) throw await httpErrorFromResponse(res);
-  
-    }catch (error:unknown) {
-      const appErr = toAppError(error);
-
-      // rollback on failure
-      setMessages(prev => prev); // or re-fetch chat, or restore from a backup list
-      console.error("Failed to delete message:", appErr);
-    }
-
-  },[chatId,setMessages])
-
-
-
-  // Socket join/real-time
-useEffect(() => {
-    const chatSocket = io("/chat",{ path: "/socket.io", withCredentials: true });
-    chatSocketRef.current = chatSocket;
-
-    chatSocket.emit("chat:join", {chatId });
-
-    // Event handlers
-
-    // New incoming message: append
-    const onNewIncoming = (newIncoming: ChatMessage) => {
-        setMessages(prev => {
-            // avoid duplicates
-            if (prev.some(msg => msg.id === newIncoming.id)) return prev;
-            return [...prev, newIncoming];
-        });
-    };
-
-    // Message updated: replace by id
-    const onUpdate = (updated: ChatMessage) => {
-        setMessages(prev => prev.map(msg => (msg.id === updated.id ? updated : msg)));
-    };
-
-    // Message deleted: remove by id or by ids payload
-    const onDelete = ( ids : string[]) => {
-        setMessages(prev => prev.filter(msg => !ids.includes(msg.id)));
-    };
-
-    // Server ack for optimistic send: swap tempId with real message
-    // payload: { tempId?: string, message: ChatMessage }
-    const onSent = (payload: { tempId?: string; message: ChatMessage }) => {
-        const { tempId, message } = payload;
-        if (tempId) {
-            setMessages(prev => prev.map(msg => (msg.id === tempId ? message : msg)));
-        } else {
-            // If no tempId, append if not present
-            setMessages(prev => (prev.some(m => m.id === message.id) ? prev : [...prev, message]));
+      return authedFetchJSON(async () => {
+        try {
+          const res = await fetch(
+            `/api/chat/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/delete`,
+            { method: "DELETE", credentials: "include" }
+          );
+          if (!res.ok) throw await httpErrorFromResponse(res);
+        } catch (error) {
+          // rollback
+          setMessages(snapshot);
+          throw error;
         }
+      });
+    },
+    [chatId, authedFetchJSON]
+  );
+
+  // SOCKETS: connect once per chatId, join/leave only when chatId exists
+  useEffect(() => {
+    if (!chatId) return;
+
+    const socket = io("/chat", { path: "/socket.io", withCredentials: true });
+    socketRef.current = socket;
+
+    const onMessage = (payload: ChatMessageEvent) => {
+      if (payload.chatId !== chatId) return;
+
+      setMessages(prev => {
+        // If server echoes tempId, reconcile it
+        if (payload.tempId) {
+          const hasTemp = prev.some(m => m.id === payload.tempId);
+          if (hasTemp) return prev.map(message => (message.id === payload.tempId ? payload.message : message));
+        }
+
+        // Otherwise avoid duplicates by real id
+        if (prev.some(message => message.id === payload.message.id)) return prev;
+        return [...prev, payload.message];
+      });
     };
 
-    chatSocket.on("chat:message", onNewIncoming);
-    chatSocket.on("dm:update", onUpdate);
-    chatSocket.on("dm:delete", onDelete);
-    chatSocket.on("dm:sent", onSent);
+    const onUpdated = (payload: ChatUpdatedEvent) => {
+      if (payload.chatId !== chatId) return;
+      setMessages(prev => prev.map(m => (m.id === payload.message.id ? payload.message : m)));
+    };
+
+    const onDeleted = (payload: ChatDeletedEvent) => {
+      if (payload.chatId !== chatId) return;
+      setMessages(prev => prev.filter(message => !payload.ids.includes(message.id)));
+    };
+
+    socket.on("connect", () => {
+      socket.emit("chat:join", { chatId });
+    });
+
+    socket.on("chat:message", onMessage);
+    socket.on("chat:updated", onUpdated);
+    socket.on("chat:deleted", onDeleted);
 
     return () => {
-        chatSocket.emit("chat:leave", {chatId }); 
-        chatSocket.off("chat:message", onNewIncoming);
-        chatSocket.off("dm:update", onUpdate);
-        chatSocket.off("dm:delete", onDelete);
-        chatSocket.off("dm:sent", onSent);
-        chatSocket.disconnect();
-        chatSocketRef.current = null;
+      socket.emit("chat:leave", { chatId });
+      socket.off("chat:message", onMessage);
+      socket.off("chat:updated", onUpdated);
+      socket.off("chat:deleted", onDeleted);
+      socket.disconnect();
+      socketRef.current = null;
     };
-}, [chatId]);
+  }, [chatId]);
 
-  useEffect(() => { void loadInitial(); }, [loadInitial]);
+  // Load history whenever chatId changes
+  useEffect(() => {
+    void loadInitial();
+  }, [loadInitial]);
 
-  return { messages, loading, loadMore, hasMore: !!nextCursor, sendMessage,deleteMessageOnServer: deleteMessage };
+  return {
+    messages,
+    loading,
+    hasMore: !!nextCursor,
+    loadMore,
+    sendMessage,
+    deleteMessageOnServer: deleteMessage,
+  };
 }

@@ -11,8 +11,8 @@ chatRouter.get("/:chatId/history",requireAuth,getChatHistory)
 chatRouter.post("/:chatId/send",requireAuth,sendMessage)
 chatRouter.post("/dm/:peerId/open",requireAuth,openOrCreateDm)
 chatRouter.get("/my-chats",requireAuth,getAllMyChats)
-chatRouter.delete("/messages/:messageId/delete",requireAuth,deleteMessage)
-chatRouter.put("/messages/:messageId/edit",requireAuth,editMessage)
+chatRouter.delete("/:chatId/messages/:messageId/delete",requireAuth,deleteMessage)
+chatRouter.put("/:chatId/messages/:messageId/edit",requireAuth,editMessage)
 
 
 

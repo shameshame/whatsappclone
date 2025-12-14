@@ -102,6 +102,7 @@ export const sendMessage: RequestHandler<ChatIdParams> = async (req, res) => {
   const me = (req as any).user.id as string;
   const { chatId }  = req.params;
   const text = String(req.body?.text ?? "").trim();
+  const tempId = typeof req.body?.tempId === "string" ? req.body.tempId : undefined;
 
   if (!text) return res.status(400).json({ ok: false, message: "empty" });
   if (text.length > 4000) return res.status(413).json({ ok: false, message: "too-long" });
@@ -133,7 +134,7 @@ export const sendMessage: RequestHandler<ChatIdParams> = async (req, res) => {
     });
 
 
-    emitToChatRoom(req, chatId, "chat:message", {message: result });
+    emitToChatRoom(req, chatId, "chat:message", { chatId, message: result, tempId });
     
 
     return res.json({ ok: true, message: result });
@@ -146,65 +147,74 @@ export const sendMessage: RequestHandler<ChatIdParams> = async (req, res) => {
 
 
 
-// PATCH /api/dm/:peerId/messages/:messageId  { content: string }
-export const editMessage: RequestHandler= async (req, res) => {
+// PATCH /api/chat/:chatId/messages/:messageId  { content: string }
+export const editMessage: RequestHandler = async (req, res) => {
   const me = (req as any).user.id as string;
-  const { peerId, messageId } = req.params;
+  const { chatId, messageId } = req.params as { chatId: string; messageId: string };
   const { content } = (req.body ?? {}) as { content?: string };
 
   if (typeof content !== "string" || content.trim().length === 0) {
     return res.status(400).json({ ok: false, code: "bad-content" });
   }
 
-  const chatId = deterministicId(me, peerId as string);
-
   try {
+    // Ensure member of chat (DM or GROUP)
+    await assertMemberOfChat(prisma, chatId, me);
+
+    // Ensure ownership + window etc (your existing helpers)
     const msg = await loadOwnedMessageOrThrow(messageId, me, chatId);
     if (msg.isDeleted) return res.status(409).json({ ok: false, code: "already-deleted" });
-
     assertWithinEditWindowOrThrow(msg);
 
     const updated = await prisma.message.update({
       where: { id: messageId },
       data: { text: content.trim(), editedAt: new Date() },
-      select: { id: true, chatId: true, senderId: true, text: true, editedAt: true },
+      select: {
+        id: true,
+        chatId: true,
+        senderId: true,
+        text: true,
+        editedAt: true,
+        isDeleted: true,
+        deletedAt: true,
+        createdAt: true,
+        kind: true,
+        author: { select: { id: true, displayName: true, handle: true } },
+      },
     });
 
-    // Notify room via Socket.IO
-    emitToChatRoom(req, chatId, "dm:message-updated", { message: updated });
+    // ✅ unified event + payload
+    emitToChatRoom(req, chatId, "chat:updated", { chatId, message: updated });
+
     return res.json({ ok: true, message: updated });
-  
   } catch (err: any) {
     const status = err?.status ?? 500;
     return res.status(status).json({ ok: false, code: err?.message || "server-error" });
   }
 };
 
-// Delete message (soft delete)
-// DELETE /api/dm/:peerId/messages/:messageId
+
+// DELETE /api/chat/:chatId/messages/:messageId
 export const deleteMessage: RequestHandler = async (req, res) => {
   const me = (req as any).user.id as string;
-  const { peerId, messageId } = req.params;
-
-  const chatId = deterministicId(me, peerId as string);
+  const { chatId, messageId } = req.params as { chatId: string; messageId: string };
 
   try {
-    
+    await assertMemberOfChat(prisma, chatId, me);
+
     const message = await loadOwnedMessageOrThrow(messageId, me, chatId);
-    if (message.isDeleted) {
-      return res.status(409).json({ ok: false, code: "already-deleted" });
-    }
+    if (message.isDeleted) return res.status(409).json({ ok: false, code: "already-deleted" });
 
     const deleted = await prisma.message.update({
       where: { id: messageId },
-      data: { isDeleted: true, deletedAt: new Date(), text: "" }, // blank out content
-      select: { id: true, chatId: true, senderId: true, isDeleted: true, deletedAt: true },
+      data: { isDeleted: true, deletedAt: new Date(), text: "" },
+      select: { id: true, chatId: true },
     });
 
-    
-    emitToChatRoom(req, chatId, "dm:message-deleted", { messageId: deleted.id });
+    // ✅ unified event + payload (ids array)
+    emitToChatRoom(req, chatId, "chat:deleted", { chatId, ids: [deleted.id] });
+
     return res.json({ ok: true });
-  
   } catch (err: any) {
     const status = err?.status ?? 500;
     return res.status(status).json({ ok: false, code: err?.message || "server-error" });

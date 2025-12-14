@@ -96,11 +96,11 @@ export async function ensureDmChat(
 }
 
 export async function assertMemberOfChat(
-  tx: Prisma.TransactionClient,
+  db: Prisma.TransactionClient | PrismaClient,
   chatId: string,
   userId: string
 ) {
-  const member = await tx.chatMember.findUnique({
+  const member = await db.chatMember.findUnique({
     where: { chatId_userId: { chatId, userId } },
     select: { role: true, chat: { select: { type: true } } },
   });

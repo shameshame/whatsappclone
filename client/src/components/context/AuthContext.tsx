@@ -3,7 +3,7 @@ import { ReactNode,createContext, useContext, useState,useEffect, useCallback} f
 
 
 
-const AuthContext = createContext<AuthContextValue>({status:"loading",user:undefined,device:undefined, getMe:async()=>{}});
+const AuthContext = createContext<AuthContextValue>({status:"loading",user:undefined,device:undefined, getMe:async()=>{},forceLogout:()=>{}});
 
 export const useAuth = () => {
   const authStatus = useContext(AuthContext);
@@ -39,12 +39,17 @@ const getMe = useCallback(async () => {
     }
   }, []);
 
+  const forceLogout = useCallback(() => {
+    setAuth({ status: "unauthenticated", user: undefined, device: undefined });
+  }, []);
+
+
   // run once on app load
   useEffect(() => {
     void getMe();
   }, [getMe]);
 
-return (<AuthContext.Provider value={{ ...auth, getMe}}>{children}</AuthContext.Provider>)
+return (<AuthContext.Provider value={{ ...auth, getMe,forceLogout}}>{children}</AuthContext.Provider>)
 
 
 
