@@ -15,7 +15,7 @@ export default function ChatWindow() {
     const [input, setInput] = useState("")
     const { chatId } = useParams<{ chatId: string }>();
     const {user}=useAuth();
-    const { messages, loading, sendMessage,deleteMessageOnServer } = useChat(chatId);
+    const { messages, loading, sendMessage} = useChat(chatId);
     const currentUser = user?.id
 
     const onSendMessage = useCallback(async () => {

@@ -31,7 +31,6 @@ const chatNamespace = io.of("/chat");   // protected, for chat sockets
 
 // protect chat namespace only
 requireSocketAuth(chatNamespace);
-attachChatNamespaceHandlers(chatNamespace);
 
 
 
@@ -107,6 +106,10 @@ pairNamespace.on("connection", (socket) => {
     if (ok) await emitPendingIfAny(io, sessionId);
   });
 });
+
+
+attachChatNamespaceHandlers(chatNamespace);
+
 
 
 

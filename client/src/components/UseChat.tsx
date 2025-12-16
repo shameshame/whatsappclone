@@ -24,10 +24,7 @@ export function useChat(chatId: string | undefined) {
 
   const socketRef = useRef<Socket | null>(null);
   const lastMessagesRef = useRef<ChatMessage[]>([]);
-  useEffect(() => {
-    lastMessagesRef.current = messages;
-  }, [messages]);
-
+  
   // Keep these stable and reusable
   const authedFetchJSON = useCallback(
     <T,>(fn: () => Promise<T>) => withAuthGuard(fn, forceLogout),
@@ -117,6 +114,52 @@ export function useChat(chatId: string | undefined) {
     [chatId, user?.id, authedFetchJSON]
   );
 
+  
+const updateMessage = useCallback(
+  (messageId: string, text: string) => {
+    if (!chatId) return Promise.reject(new Error("No chat selected"));
+
+    const trimmed = text.trim();
+    if (!trimmed) return Promise.reject(new Error("Empty message"));
+
+    // optimistic update
+    setMessages(prev =>
+      prev.map(message =>
+        message.id === messageId
+          ? { ...message, text: trimmed, editedAt: new Date().toISOString() } // keep it simple client-side
+          : message
+      )
+    );
+
+    return authedFetchJSON(async () => {
+      try {
+        const res = await fetch(
+          `/api/chat/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/edit`,
+          {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: trimmed }), // server expects { content }
+          }
+        );
+
+        if (!res.ok) throw await httpErrorFromResponse(res);
+
+        const data = (await res.json()) as { message: ChatMessage };
+
+        // replace optimistic with server truth
+        setMessages(prev => prev.map(message => (message.id === messageId ? data.message : message)));
+        return data.message;
+      } catch (err) {
+        // rollback on failure
+        setMessages(lastMessagesRef.current);
+        throw err;
+      }
+    });
+  },
+  [chatId, authedFetchJSON]
+);
+
   const deleteMessage = useCallback(
     (messageId: string) => {
       if (!chatId) return Promise.reject(new Error("No chat selected"));
@@ -200,12 +243,21 @@ export function useChat(chatId: string | undefined) {
     void loadInitial();
   }, [loadInitial]);
 
+  // Keep lastMessagesRef updated for rollback use
+
+  useEffect(() => {
+    lastMessagesRef.current = messages;
+  }, [messages]);
+
+
   return {
     messages,
     loading,
     hasMore: !!nextCursor,
     loadMore,
     sendMessage,
-    deleteMessageOnServer: deleteMessage,
+    deleteMessage,
+    updateMessage
+
   };
 }
