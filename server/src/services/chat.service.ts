@@ -164,7 +164,7 @@ export const editMessage: RequestHandler = async (req, res) => {
     // Ensure ownership + window etc (your existing helpers)
     const msg = await loadOwnedMessageOrThrow(messageId, me, chatId);
     if (msg.isDeleted) return res.status(409).json({ ok: false, code: "already-deleted" });
-    assertWithinEditWindowOrThrow(msg);
+    assertWithinEditWindowOrThrow(msg.createdAt);
 
     const updated = await prisma.message.update({
       where: { id: messageId },

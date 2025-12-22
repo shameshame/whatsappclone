@@ -2,7 +2,7 @@
 import { PrismaClient } from "@prisma/client";
 import { differenceInMilliseconds } from "date-fns";
 
-const FIFTEEN_MIN = 15 * 60 * 1000;
+
 
 const prisma = new PrismaClient();
 
@@ -21,11 +21,17 @@ export async function loadOwnedMessageOrThrow(messageId: string | undefined, me:
   return msg;
 }
 
-export function assertWithinEditWindowOrThrow(msg: { createdAt: Date }) {
-  const age = Date.now() - msg.createdAt.getTime();
-  if (age > FIFTEEN_MIN) {
-    const err = new Error("edit-window-passed");
-    (err as any).status = 403;
-    throw err;
+export function assertWithinEditWindowOrThrow(createdAt: Date ) {
+  
+  const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+  
+  if (!(createdAt instanceof Date) || Number.isNaN(createdAt.getTime())) {
+    throw Object.assign(new Error("invalid-created-at"), { status: 400 });
+  }
+
+  const ageMs = Date.now() - createdAt.getTime();
+
+  if (ageMs > FIFTEEN_MINUTES_MS) {
+    throw Object.assign(new Error("edit-window-expired"), { status: 409 });
   }
 }
