@@ -10,8 +10,6 @@ import { chatRouter } from "./routes/chat.routes";
 import { userRouter } from "./routes/user.routes";
 import { registerSocket, emitPendingIfAny } from "./services/session.service";
 import { requireSocketAuth } from "./middleware/socketAuth";
-
-
 import cors from "cors";
 import { randomBytes } from "crypto";
 import { attachChatNamespaceHandlers } from "./chat/chatNsHandlers";
@@ -24,27 +22,14 @@ const morgan = require("morgan")
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {path: "/socket.io", cors: { origin: "http://localhost:5173",credentials:true } });
 
-// create namespaces
-const pairNamespace = io.of("/pair");   // no auth, used by QR pairing UI
-const chatNamespace = io.of("/chat");   // protected, for chat sockets
-
-
-// protect chat namespace only
-requireSocketAuth(chatNamespace);
 
 
 
-async function main() {
-  await initRedis();               // <-- used to be top-level await
-  server.listen(3000, () => {
-    console.log("API on http://localhost:3000");
-  });
-}
 
-main().catch((err) => {
-  console.error("Fatal:", err);
-  process.exit(1);
-});
+
+
+
+
 
 // (Optional but recommended if you’ll run multiple server instances)
 // const pub = createClient({ url: process.env.REDIS_URL });
@@ -56,17 +41,6 @@ app.use(cors());
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
-
-// make io available to routes/services
-app.set("io", io);
-
-app.use("/api/session", sessionRouter);
-app.use("/api/auth",authRouter)
-app.use("/api/registration",registryRouter)
-app.use("/api/chat",chatRouter)
-app.use("/api/users",userRouter)
-app.use("/api/group", groupRouter);
-
 
 // issue a CSRF cookie if it's missing
 app.use((req, res, next) => {
@@ -80,6 +54,28 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+
+// create namespaces
+const pairNamespace = io.of("/pair");   // no auth, used by QR pairing UI
+const chatNamespace = io.of("/chat");   // protected, for chat sockets
+
+
+// protect chat namespace only
+requireSocketAuth(chatNamespace);
+
+
+// make io available to routes/services
+app.set("io", io);
+
+app.use("/api/session", sessionRouter);
+app.use("/api/auth",authRouter)
+app.use("/api/registration",registryRouter)
+app.use("/api/chat",chatRouter)
+app.use("/api/users",userRouter)
+app.use("/api/group", groupRouter);
+
+
 
 
 // app.use((req, res, next) => {
@@ -110,6 +106,18 @@ pairNamespace.on("connection", (socket) => {
 
 attachChatNamespaceHandlers(chatNamespace);
 
+
+async function main() {
+  await initRedis();               // <-- used to be top-level await
+  server.listen(3000, () => {
+    console.log("API on http://localhost:3000");
+  });
+}
+
+main().catch((err) => {
+  console.error("Fatal:", err);
+  process.exit(1);
+});
 
 
 

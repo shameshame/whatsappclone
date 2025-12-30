@@ -3,5 +3,6 @@ export type ChatMessage = {
   chatId: string;
   senderId: string;
   text: string;
-  createdAt: string; // ISO
+  createdAt: Date |string|number; // ISO
+  replyToId?: string | null;
 };

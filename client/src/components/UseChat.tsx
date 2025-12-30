@@ -5,6 +5,7 @@ import { io, Socket } from "socket.io-client";
 import { httpErrorFromResponse } from "@/utilities/error-utils";
 import { useAuth } from "./context/AuthContext";
 import { withAuthGuard } from "@/utilities/authErrorBoundary";
+import { ReplyTarget } from "@/types/replyTarget";
 
 type HistoryResp = { messages: ChatMessage[]; nextCursor: string | null };
 
@@ -21,6 +22,7 @@ export function useChat(chatId: string | undefined) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const lastMessagesRef = useRef<ChatMessage[]>([]);
@@ -84,10 +86,14 @@ export function useChat(chatId: string | undefined) {
         senderId: user?.id as string,
         text: trimmed,
         createdAt: new Date().toISOString(),
+        replyToId: replyTo?.id ?? null
       };
 
       // optimistic insert
       setMessages(prev => [...prev, optimistic]);
+
+      const replyToId = replyTo?.id ?? null;
+      clearReply();
 
       return authedFetchJSON(async () => {
         try {
@@ -95,7 +101,7 @@ export function useChat(chatId: string | undefined) {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: trimmed, tempId }),
+            body: JSON.stringify({ text: trimmed, tempId,replyToId }),
           });
 
           if (!res.ok) throw await httpErrorFromResponse(res);
@@ -111,7 +117,7 @@ export function useChat(chatId: string | undefined) {
         }
       });
     },
-    [chatId, user?.id, authedFetchJSON]
+    [chatId, user?.id, replyTo, authedFetchJSON]
   );
 
   
@@ -187,6 +193,37 @@ const updateMessage = useCallback(
     [chatId, authedFetchJSON]
   );
 
+   const reactToMessage = useCallback(
+    (messageId: string, emoji: string) => {
+      if (!chatId) return Promise.reject(new Error("No chat selected"));
+
+      return authedFetchJSON(async () => {
+        const res = await fetch(
+          `/api/chat/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(
+            messageId
+          )}/react`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ emoji }),
+          }
+        );
+        if (!res.ok) throw await httpErrorFromResponse(res);
+        const data = (await res.json()) as { ok: true };
+        return data;
+      });
+    },
+    [chatId, forceLogout]
+  );
+
+
+
+
+
+
+  const clearReply = useCallback(() => setReplyTo(null), []);
+
   // SOCKETS: connect once per chatId, join/leave only when chatId exists
   useEffect(() => {
     if (!chatId) return;
@@ -254,10 +291,14 @@ const updateMessage = useCallback(
     messages,
     loading,
     hasMore: !!nextCursor,
+    reactToMessage,
     loadMore,
     sendMessage,
     deleteMessage,
-    updateMessage
+    updateMessage,
+    replyTo,
+    setReplyTo,
+    clearReply,
 
   };
 }

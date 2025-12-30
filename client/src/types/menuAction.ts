@@ -1,10 +1,12 @@
-export type ActionsMenuProps = {
+import { ChatMessage } from "@shared/types/chatMessage";
+import { MessageActions } from "./messageActions";
+
+export type ActionsMenuProps = MessageActions & {
+  
+  message:ChatMessage
   isMe: boolean;
-  onDelete?: () => void;
-  onEdit?: () => void;
-  onReply?: () => void;
-  onReact?: () => void;
-  createdAt: string |Date;
+ 
+  
   isHandheld: boolean;
   // optional: you might want to disable edit/delete if > 15 min
   canEdit?: boolean;

@@ -15,8 +15,43 @@ export default function ChatWindow() {
     const [input, setInput] = useState("")
     const { chatId } = useParams<{ chatId: string }>();
     const {user}=useAuth();
-    const { messages, loading, sendMessage} = useChat(chatId);
+    const { messages, loading, sendMessage,deleteMessage,updateMessage,reactToMessage,setReplyTo} = useChat(chatId);
     const currentUser = user?.id
+
+
+    // ✅ onEdit: called from MessageBubble → opens Edit UI → Save calls this
+  const onEdit = useCallback(
+    async (messageId: string, nextText: string) => {
+      await updateMessage(messageId, nextText);
+    },
+    [updateMessage]
+  );
+
+  // ✅ onDelete: called from MessageBubble → Delete option
+  const onDelete = useCallback(
+    async (messageId: string) => {
+      await deleteMessage(messageId);
+    },
+    [deleteMessage]
+  );
+
+  // ✅ onReact: called from MessageBubble → emoji pick
+  const onReact = useCallback(
+    async (messageId: string, emoji: string) => {
+      await reactToMessage(messageId, emoji);
+    },
+    [reactToMessage]
+  );
+
+  // (optional) reply
+  const onReply = useCallback(
+    (message: ChatMessage) => {
+      setReplyTo?.({ id: message.id, text: message.text, senderId: message.senderId });
+    },
+    [setReplyTo]
+  );
+
+
 
     const onSendMessage = useCallback(async () => {
       const text = input.trim();
@@ -46,19 +81,17 @@ export default function ChatWindow() {
       {/* Messages */}
       <div className="overflow-y-auto p-4 space-y-8  h-screen">
         {loading ? <div>Loading…</div> : null}
-        {messages.map((message: ChatMessage) => {
-            const isMe = message.senderId === currentUser;
-            
-
-            return (
+        {messages.map((message: ChatMessage) => 
               <MessageBubble
                 key={message.id}
-                text={message.text}
-                timestamp={Date.parse(message.createdAt)}
-                isMe={isMe}
+                message={message}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onReact={onReact}
+                onReply={onReply}
               />
-            );
-        })}
+            
+        )}
       </div>
       
       {/* Input */}
