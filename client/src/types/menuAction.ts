@@ -5,7 +5,8 @@ export type ActionsMenuProps = MessageActions & {
   
   message:ChatMessage
   isMe: boolean;
- 
+  open: boolean;
+  onOpenChange?: (value: boolean) => void;
   
   isHandheld: boolean;
   // optional: you might want to disable edit/delete if > 15 min
