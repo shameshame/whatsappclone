@@ -18,8 +18,9 @@ model User {
   devices       Device[]
 
   // relation back to ChatMember (one entry per chat this user is in)
-  chatMembers ChatMember[]
-  Message     Message[]
+  chatMembers     ChatMember[]
+  Message         Message[]
+  MessageReaction MessageReaction[]
 }
 
 model Credential {
@@ -57,10 +58,25 @@ model Message {
   isDeleted Boolean   @default(false)
   deletedAt DateTime?
 
-  chat   Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  author User @relation(fields: [senderId], references: [id])
+  chat            Chat              @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  author          User              @relation(fields: [senderId], references: [id])
+  MessageReaction MessageReaction[]
 
   @@index([chatId, createdAt(sort: Desc)])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji]) // same user can’t add same emoji twice
+  @@index([messageId])
 }
 
 // Chat model: generic conversation container (DM or Group)
@@ -75,7 +91,7 @@ model Chat {
   lastMessageAt DateTime?
 
   // relations
-  members ChatMember[]
+  members  ChatMember[]
   messages Message[]
 
   @@index([lastMessageAt])

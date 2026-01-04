@@ -1,16 +1,21 @@
 import { RequestHandler } from "express";
 import { deterministicId } from "@shared/chat/dmId";
 import { PrismaClient } from "@prisma/client";
-import { allChatsQuery, assertMemberOfChat, ensureDmChat } from "../db/chat/chat";
+import { allChatsQuery, assertMemberOfChat, ensureDmChat, getReactionCounts, removeOrCreateReaction } from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
 import { emitToChatRoom,toChatSummary } from "../chat/helpers";
+import { create } from "domain";
+import { ReactionSummary } from "../types/reactActionPayload";
 
 
 
 type ChatIdParams = { chatId: string };
+type Params = { chatId: string; messageId: string };
+type Body = { emoji?: string };
 
 const prisma = new PrismaClient();
 
+const EMOJI_MAX_LEN = 12;
 
 
 function inputCheckerForSendMessage(req:any,res:any):{ me: string; peerId: string; text: string } | null {
@@ -64,38 +69,68 @@ export const getAllMyChats: RequestHandler = async (req, res,next) => {
 }  
 
 
-export const getChatHistory :RequestHandler = async(req: any,res:any)=>{
-   const me = (req as any).user.id as string;
-  const { chatId } = req.params;
+export const getChatHistory: RequestHandler = async (req: any, res: any) => {
+  const me = (req as any).user.id as string;
+  const { chatId } = req.params as { chatId: string };
+
   const beforeISO = req.query.before as string | undefined;
   const limit = Math.min(Number(req.query.limit ?? 20), 100);
-
-  // const chatId = deterministicId(me, peerId);
   const before = new Date(beforeISO ?? Date.now());
 
-  
-  const rows = await prisma.message.findMany({
-    where: { chatId, createdAt: { lt: before } },
-    orderBy: { createdAt: "desc" },
-    take: limit + 1,
-  });
+  try {
+    // ✅ must be a member (DM or GROUP)
+    await assertMemberOfChat(prisma as any, chatId, me);
 
-  const messages = rows.slice(0, limit).reverse(); // newest last for UI
-  const nextCursor =
-    rows.length > limit ? rows[limit]?.createdAt.toISOString() : null;
+    // fetch limit+1 for cursor
+    const rows = await prisma.message.findMany({
+      where: { chatId, createdAt: { lt: before } },
+      orderBy: { createdAt: "desc" },
+      take: limit + 1,
+      select: {
+        id: true,
+        chatId: true,
+        senderId: true,
+        text: true,
+        createdAt: true,
+        // keep if you have them
+        isDeleted: true,
+      },
+    });
 
-  res.json({
-    messages: messages.map(message => ({
-      id: message.id,
-      chatId: message.chatId,
-      senderId: message.senderId,
-      text: message.text,
-      createdAt: message.createdAt.toISOString(),
-    })),
-    nextCursor,
-  });
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
 
-}
+    // You currently reverse for UI: newest last ✅
+    const messagesNewestLast = [...page].reverse();
+
+    const nextCursor = hasMore ? page[page.length - 1]!.createdAt.toISOString() : null;
+
+    const messageIds = messagesNewestLast.map(m => m.id);
+
+    // no messages → return early
+    if (messageIds.length === 0) {
+      return res.json({ messages: [], nextCursor });
+    }
+
+    // ✅ counts per (messageId, emoji)
+    const reactionsMap = await getReactionCounts(me,messageIds);
+
+    return res.json({
+      messages: messagesNewestLast.map(message => ({
+        id: message.id,
+        chatId: message.chatId,
+        senderId: message.senderId,
+        text: (message as any).isDeleted ? "" : message.text,
+        createdAt: message.createdAt.toISOString(),
+        reactions: reactionsMap.get(message.id) ?? [],
+      })),
+      nextCursor,
+    });
+  } catch (err: any) {
+    const status = err?.status ?? 500;
+    return res.status(status).json({ ok: false, code: err?.message ?? "history-failed" });
+  }
+};
 
 // POST /api/chat/:chatId/send
 export const sendMessage: RequestHandler<ChatIdParams> = async (req, res) => {
@@ -220,3 +255,32 @@ export const deleteMessage: RequestHandler = async (req, res) => {
     return res.status(status).json({ ok: false, code: err?.message || "server-error" });
   }
 };
+
+// POST /api/chat/:chatId/messages/:messageId/react  { emoji: string }
+export const reactToMessage: RequestHandler<Params, any, Body> = async (req, res) => {
+  const me = (req as any).user.id as string;
+  const { chatId, messageId } = req.params;
+  const emoji = String(req.body?.emoji ?? "").trim();
+
+  if (!emoji) return res.status(400).json({ ok: false, code: "empty-emoji" });
+  if (emoji.length > EMOJI_MAX_LEN) return res.status(400).json({ ok: false, code: "bad-emoji" });
+
+  try {
+    const result = await removeOrCreateReaction({chatId,messageId,emoji,userId: me,});
+
+    // Broadcast to chat room (DM or GROUP room = chatId)
+    emitToChatRoom(req, chatId, "message:reaction", {
+      chatId,
+      messageId,
+      emoji,
+      userId: me,
+      action: result.action, // "added" | "removed"
+    });
+
+    return res.json({ ok: true, ...result });
+  } catch (err: any) {
+    const status = err?.status ?? 500;
+    return res.status(status).json({ ok: false, code: err?.message ?? "react-failed" });
+  }
+};
+
