@@ -4,6 +4,7 @@ import { deterministicId } from "@shared/chat/dmId";
 import { buildMemberRows } from "server/src/chat/helpers";
 import { ChatWithSummaryRelations } from "./types";
 import { ReactActionPayload, ReactionSummary } from "server/src/types/reactActionPayload";
+import { ReactionAction } from "@shared/types/reactionSummary";
 
 
 
@@ -157,43 +158,44 @@ export async function getReactionCounts(userId: string,messageIds:string[]):Prom
 }
 
 
-export async function removeOrCreateReaction (payload: ReactActionPayload):Promise<{action: "added" | "removed"}> {
+export async function toggleReactionAndSummarize(tx: Prisma.TransactionClient, args: {
+  chatId: string;
+  messageId: string;
+  userId: string;
+  emoji: string;
+}): Promise<{ action: ReactionAction; summary: ReactionSummary }> {
+  const { messageId, userId, emoji } = args;
 
-  const action = await prisma.$transaction(async (tx) => {
-      const { chatId, messageId, emoji, userId } = payload;
-  
-  
-      // 1) must be a member of the chat
-      await assertMemberOfChat(tx, chatId, userId);
+  // does user already have this reaction?
+  const existing = await tx.messageReaction.findUnique({
+    where: { messageId_userId_emoji: { messageId, userId, emoji } },
+    select: { messageId: true },
+  });
 
-      // 2) ensure message exists in this chat
-      const msg = await tx.message.findFirst({
-        where: { id: messageId, chatId },
-        select: { id: true, chatId: true, isDeleted: true },
-      });
-      
-      if (!msg) throw Object.assign(new Error("message-not-found"), { status: 404 });
-      if (msg.isDeleted) throw Object.assign(new Error("message-deleted"), { status: 409 });
+  let action: ReactionAction;
 
-      // 3) toggle behavior: if reaction exists -> remove, else create
-      const existing = await tx.messageReaction.findUnique({
-        where: { messageId_userId_emoji: { messageId, userId: userId, emoji } },
-        select: { id: true },
-      });
-
-      if (existing) {
-        await tx.messageReaction.delete({
-          where: { messageId_userId_emoji: { messageId, userId, emoji } },
-        });
-        return { action: "removed" as const };
-      } 
-      else {
-        await tx.messageReaction.create({
-          data: { messageId, userId: userId, emoji },
-        });
-        return { action: "added" as const };
-      }
+  if (existing) {
+    await tx.messageReaction.delete({
+      where: { messageId_userId_emoji: { messageId, userId, emoji } },
     });
-
-    return action;
+    action = "removed";
+  } else {
+    await tx.messageReaction.create({
+      data: { messageId, userId, emoji },
+    });
+    action = "added";
   }
+
+  // summary AFTER toggle
+  const [count, mine] = await Promise.all([
+    tx.messageReaction.count({ where: { messageId, emoji } }),
+    tx.messageReaction.findUnique({
+      where: { messageId_userId_emoji: { messageId, userId, emoji } },
+      select: { messageId: true },
+    }),
+  ]);
+
+  const summary: ReactionSummary = { emoji, count, reactedByMe: !!mine };
+
+  return { action, summary };
+}

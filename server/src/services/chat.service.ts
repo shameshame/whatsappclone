@@ -1,7 +1,7 @@
 import { RequestHandler } from "express";
 import { deterministicId } from "@shared/chat/dmId";
 import { PrismaClient } from "@prisma/client";
-import { allChatsQuery, assertMemberOfChat, ensureDmChat, getReactionCounts, removeOrCreateReaction } from "../db/chat/chat";
+import { allChatsQuery, assertMemberOfChat, ensureDmChat, getReactionCounts, removeOrCreateReaction, toggleReactionAndSummarize } from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
 import { emitToChatRoom,toChatSummary } from "../chat/helpers";
 import { create } from "domain";
@@ -266,7 +266,22 @@ export const reactToMessage: RequestHandler<Params, any, Body> = async (req, res
   if (emoji.length > EMOJI_MAX_LEN) return res.status(400).json({ ok: false, code: "bad-emoji" });
 
   try {
-    const result = await removeOrCreateReaction({chatId,messageId,emoji,userId: me,});
+    // Optional: membership check if not done in router middleware
+    // await assertMemberOfChat(prisma, chatId, me);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // ensure membership + message belongs to chat if you want:
+      await assertMemberOfChat(tx, chatId, me);
+
+      // IMPORTANT: ensure messageId is in this chatId (prevents cross-chat reacts)
+      const msg = await tx.message.findUnique({
+        where: { id: messageId },
+        select: { id: true, chatId: true },
+      });
+      if (!msg || msg.chatId !== chatId) throw Object.assign(new Error("bad-message"), { status: 404 });
+
+      return toggleReactionAndSummarize(tx, { chatId, messageId, userId: me, emoji });
+    });
 
     // Broadcast to chat room (DM or GROUP room = chatId)
     emitToChatRoom(req, chatId, "message:reaction", {
@@ -274,13 +289,23 @@ export const reactToMessage: RequestHandler<Params, any, Body> = async (req, res
       messageId,
       emoji,
       userId: me,
-      action: result.action, // "added" | "removed"
+      action: result.action,      // optional but helpful
+      summary: result.summary,    // ✅ ReactionSummary
     });
 
-    return res.json({ ok: true, ...result });
+    // ✅ Return summary to the caller too (nice for immediate UI update without waiting for socket)
+    return res.json({
+      ok: true,
+      chatId,
+      messageId,
+      emoji,
+      action: result.action,     // optional
+      summary: result.summary,   // ✅ ReactionSummary
+    });
   } catch (err: any) {
     const status = err?.status ?? 500;
     return res.status(status).json({ ok: false, code: err?.message ?? "react-failed" });
   }
 };
+
 

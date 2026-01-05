@@ -1,3 +1,5 @@
+import { ReactionSummary } from "./reactionSummary";
+
 export type ChatMessage = {
   id: string;
   chatId: string;
@@ -5,4 +7,5 @@ export type ChatMessage = {
   text: string;
   createdAt: Date |string|number; // ISO
   replyToId?: string | null;
+  reactions?: ReactionSummary[];
 };

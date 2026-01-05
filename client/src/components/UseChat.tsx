@@ -217,11 +217,6 @@ const updateMessage = useCallback(
     [chatId, forceLogout]
   );
 
-
-
-
-
-
   const clearReply = useCallback(() => setReplyTo(null), []);
 
   // SOCKETS: connect once per chatId, join/leave only when chatId exists
@@ -249,7 +244,7 @@ const updateMessage = useCallback(
 
     const onUpdated = (payload: ChatUpdatedEvent) => {
       if (payload.chatId !== chatId) return;
-      setMessages(prev => prev.map(m => (m.id === payload.message.id ? payload.message : m)));
+      setMessages(prev => prev.map(message => (message.id === payload.message.id ? payload.message : message)));
     };
 
     const onDeleted = (payload: ChatDeletedEvent) => {
