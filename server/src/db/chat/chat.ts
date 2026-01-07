@@ -18,9 +18,6 @@ type EnsureChatArgs = {
 };
 
 
-
-
-
 export const allChatsQuery = async (userId:string)=> {
   const chats = await prisma.chat.findMany({
       where: {
@@ -76,6 +73,70 @@ async function ensureChatWithMembers(
     ...chatWithMembersAndLastMessageArgs,
   });
 }
+
+async function toggleReactionHandler(tx: Prisma.TransactionClient, args: {
+  chatId: string;
+  messageId: string;
+  userId: string;
+  emoji: string;
+}): Promise<{action: ReactionAction; summary: ReactionSummary }> {
+  const { messageId, userId, emoji } = args;
+
+  // does user already have this reaction?
+  const existing = await tx.messageReaction.findUnique({
+    where: { messageId_userId_emoji: { messageId, userId, emoji } },
+    select: { messageId: true },
+  });
+
+  let action: ReactionAction;
+
+  if (existing) {
+    await tx.messageReaction.delete({
+      where: { messageId_userId_emoji: { messageId, userId, emoji } },
+    });
+    action = "removed";
+  } else {
+    await tx.messageReaction.create({
+      data: { messageId, userId, emoji },
+    });
+    action = "added";
+  }
+
+  // summary AFTER toggle
+  const [count, mine] = await Promise.all([
+    tx.messageReaction.count({ where: { messageId, emoji } }),
+    tx.messageReaction.findUnique({
+      where: { messageId_userId_emoji: { messageId, userId, emoji } },
+      select: { messageId: true },
+    }),
+  ]);
+
+  const summary: ReactionSummary = { emoji, count, reactedByMe: !!mine };
+
+  return { action, summary };
+}
+
+export async function reactionSummary(messageId: string,emoji: string,userId: string,chatId: string):Promise<{ action: ReactionAction; summary: ReactionSummary }> {
+  
+  const summary = await prisma.$transaction(async (tx) => {
+        // ensure membership + message belongs to chat if you want:
+        await assertMemberOfChat(tx, chatId, userId);
+  
+        // IMPORTANT: ensure messageId is in this chatId (prevents cross-chat reacts)
+        const msg = await tx.message.findUnique({
+          where: { id: messageId },
+          select: { id: true, chatId: true },
+        });
+        if (!msg || msg.chatId !== chatId) throw Object.assign(new Error("bad-message"), { status: 404 });
+  
+        return toggleReactionHandler(tx, { chatId, messageId, userId, emoji });
+  });
+
+
+  return summary;
+}
+
+
 
 
 
@@ -158,44 +219,4 @@ export async function getReactionCounts(userId: string,messageIds:string[]):Prom
 }
 
 
-export async function toggleReactionAndSummarize(tx: Prisma.TransactionClient, args: {
-  chatId: string;
-  messageId: string;
-  userId: string;
-  emoji: string;
-}): Promise<{ action: ReactionAction; summary: ReactionSummary }> {
-  const { messageId, userId, emoji } = args;
 
-  // does user already have this reaction?
-  const existing = await tx.messageReaction.findUnique({
-    where: { messageId_userId_emoji: { messageId, userId, emoji } },
-    select: { messageId: true },
-  });
-
-  let action: ReactionAction;
-
-  if (existing) {
-    await tx.messageReaction.delete({
-      where: { messageId_userId_emoji: { messageId, userId, emoji } },
-    });
-    action = "removed";
-  } else {
-    await tx.messageReaction.create({
-      data: { messageId, userId, emoji },
-    });
-    action = "added";
-  }
-
-  // summary AFTER toggle
-  const [count, mine] = await Promise.all([
-    tx.messageReaction.count({ where: { messageId, emoji } }),
-    tx.messageReaction.findUnique({
-      where: { messageId_userId_emoji: { messageId, userId, emoji } },
-      select: { messageId: true },
-    }),
-  ]);
-
-  const summary: ReactionSummary = { emoji, count, reactedByMe: !!mine };
-
-  return { action, summary };
-}

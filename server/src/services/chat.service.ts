@@ -1,11 +1,9 @@
 import { RequestHandler } from "express";
-import { deterministicId } from "@shared/chat/dmId";
 import { PrismaClient } from "@prisma/client";
-import { allChatsQuery, assertMemberOfChat, ensureDmChat, getReactionCounts, removeOrCreateReaction, toggleReactionAndSummarize } from "../db/chat/chat";
+import { allChatsQuery, assertMemberOfChat, ensureDmChat, getReactionCounts, reactionSummary} from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
 import { emitToChatRoom,toChatSummary } from "../chat/helpers";
-import { create } from "domain";
-import { ReactionSummary } from "../types/reactActionPayload";
+
 
 
 
@@ -102,15 +100,13 @@ export const getChatHistory: RequestHandler = async (req: any, res: any) => {
 
     // You currently reverse for UI: newest last ✅
     const messagesNewestLast = [...page].reverse();
-
     const nextCursor = hasMore ? page[page.length - 1]!.createdAt.toISOString() : null;
 
     const messageIds = messagesNewestLast.map(m => m.id);
 
     // no messages → return early
-    if (messageIds.length === 0) {
-      return res.json({ messages: [], nextCursor });
-    }
+    if (!messageIds.length) return res.json({ messages: [], nextCursor });
+    
 
     // ✅ counts per (messageId, emoji)
     const reactionsMap = await getReactionCounts(me,messageIds);
@@ -170,9 +166,8 @@ export const sendMessage: RequestHandler<ChatIdParams> = async (req, res) => {
 
 
     emitToChatRoom(req, chatId, "chat:message", { chatId, message: result, tempId });
-    
-
     return res.json({ ok: true, message: result });
+  
   } catch (err: any) {
     const status = err?.status ?? 500;
     return res.status(status).json({ ok: false, message: err?.message ?? "send-failed" });
@@ -269,19 +264,7 @@ export const reactToMessage: RequestHandler<Params, any, Body> = async (req, res
     // Optional: membership check if not done in router middleware
     // await assertMemberOfChat(prisma, chatId, me);
 
-    const result = await prisma.$transaction(async (tx) => {
-      // ensure membership + message belongs to chat if you want:
-      await assertMemberOfChat(tx, chatId, me);
-
-      // IMPORTANT: ensure messageId is in this chatId (prevents cross-chat reacts)
-      const msg = await tx.message.findUnique({
-        where: { id: messageId },
-        select: { id: true, chatId: true },
-      });
-      if (!msg || msg.chatId !== chatId) throw Object.assign(new Error("bad-message"), { status: 404 });
-
-      return toggleReactionAndSummarize(tx, { chatId, messageId, userId: me, emoji });
-    });
+    const result = await reactionSummary(messageId, emoji, me, chatId);
 
     // Broadcast to chat room (DM or GROUP room = chatId)
     emitToChatRoom(req, chatId, "message:reaction", {

@@ -6,6 +6,8 @@ import { httpErrorFromResponse } from "@/utilities/error-utils";
 import { useAuth } from "./context/AuthContext";
 import { withAuthGuard } from "@/utilities/authErrorBoundary";
 import { ReplyTarget } from "@/types/replyTarget";
+import { applyReactionPatch } from "@/utilities/applyReactionPatch";
+import { MessageReactionEvent } from "@/types/chatReactionEvent";
 
 type HistoryResp = { messages: ChatMessage[]; nextCursor: string | null };
 
@@ -252,6 +254,20 @@ const updateMessage = useCallback(
       setMessages(prev => prev.filter(message => !payload.ids.includes(message.id)));
     };
 
+
+    const onReaction = (payload: MessageReactionEvent) => {
+          if (payload.chatId !== chatId) return;
+
+          setMessages(prev =>applyReactionPatch(prev, {
+              messageId: payload.messageId,
+              emoji: payload.emoji,
+              // if count becomes 0 you can either:have server return count=0, or omit summary on remove when count==0
+              summary: payload.summary.count > 0 ? payload.summary : undefined,
+            })
+          );
+    }
+
+
     socket.on("connect", () => {
       socket.emit("chat:join", { chatId });
     });
@@ -259,16 +275,24 @@ const updateMessage = useCallback(
     socket.on("chat:message", onMessage);
     socket.on("chat:updated", onUpdated);
     socket.on("chat:deleted", onDeleted);
+    socket.on("message:reaction", onReaction)
 
     return () => {
       socket.emit("chat:leave", { chatId });
       socket.off("chat:message", onMessage);
       socket.off("chat:updated", onUpdated);
       socket.off("chat:deleted", onDeleted);
+      socket.off("message:reaction", onReaction);
       socket.disconnect();
       socketRef.current = null;
     };
+  
   }, [chatId]);
+
+
+
+    
+ 
 
   // Load history whenever chatId changes
   useEffect(() => {
