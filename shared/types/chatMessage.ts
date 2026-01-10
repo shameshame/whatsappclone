@@ -8,4 +8,6 @@ export type ChatMessage = {
   createdAt: Date |string|number; // ISO
   replyToId?: string | null;
   reactions?: ReactionSummary[];
+  isDeleted?: boolean;
+  deletedAt?: Date |string|number | null;
 };

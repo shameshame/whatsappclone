@@ -125,6 +125,7 @@ export default function ChatList(){
         <div className="mt-2 overflow-y-auto">
           {allChats.map((chat) => {
               const last = chat.lastMessage;
+              const unreadCount = chat.me?.unreadCount ?? 0;
              
               return (
                 <div
@@ -135,6 +136,7 @@ export default function ChatList(){
                 >
                   <ChatItem
                     name={getPeerName(chat,currentUserId) ?? "Unnamed chat"}
+                    unreadCount={unreadCount}
                     message={
                       last?.isDeleted
                         ? "Message deleted"

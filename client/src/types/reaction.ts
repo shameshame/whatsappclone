@@ -7,8 +7,3 @@ export type MessageReactionEvent = {
   summary: { emoji: string; count: number; reactedByMe: boolean };
 };
 
-export type ReactionSummary = {
-  emoji: string;
-  count: number;
-  reactedByMe: boolean;
-};

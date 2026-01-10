@@ -237,7 +237,7 @@ export const deleteMessage: RequestHandler = async (req, res) => {
 
     const deleted = await prisma.message.update({
       where: { id: messageId },
-      data: { isDeleted: true, deletedAt: new Date(), text: "" },
+      data: { isDeleted: true, deletedAt: new Date(), text: "Message deleted" },
       select: { id: true, chatId: true },
     });
 
@@ -288,6 +288,35 @@ export const reactToMessage: RequestHandler<Params, any, Body> = async (req, res
   } catch (err: any) {
     const status = err?.status ?? 500;
     return res.status(status).json({ ok: false, code: err?.message ?? "react-failed" });
+  }
+};
+
+export const markChatRead: RequestHandler<ChatIdParams> = async (req, res) => {
+  const me = (req as any).user?.id as string | undefined;
+  const { chatId } = req.params;
+
+  if (!me) return res.sendStatus(401);
+  if (!chatId) return res.status(400).json({ ok: false, code: "missing-chatId" });
+
+  try {
+    // ensure chat exists + membership (throws 403 if not member)
+    await prisma.$transaction(async (tx) => {
+      await assertMemberOfChat(tx, chatId, me);
+
+      await tx.chatMember.update({
+        where: { chatId_userId: { chatId, userId: me } },
+        data: { unreadCount: 0 },
+      });
+    });
+
+    // Optional: sync other tabs/devices for THIS user.
+    // If you have a "user room" concept, emit there. If not, you can skip this.
+    // emitToChatRoom(req, `user:${me}`, "chat:read", { chatId, unreadCount: 0 });
+
+    return res.json({ ok: true, chatId, unreadCount: 0 });
+  } catch (err: any) {
+    const status = err?.status ?? 500;
+    return res.status(status).json({ ok: false, code: err?.message ?? "mark-read-failed" });
   }
 };
 

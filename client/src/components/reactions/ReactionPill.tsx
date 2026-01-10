@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { ReactionSummary } from "../../types/reaction";
+import { ReactionSummary } from "@shared/types/reactionSummary";
 
 export function ReactionPill({
   emoji,
