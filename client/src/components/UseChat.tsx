@@ -7,7 +7,7 @@ import { useAuth } from "./context/AuthContext";
 import { withAuthGuard } from "@/utilities/authErrorBoundary";
 import { ReplyTarget } from "@/types/replyTarget";
 import { applyReactionPatch } from "@/utilities/applyReactionPatch";
-import { MessageReactionEvent } from "@/types/chatReactionEvent";
+import { MessageReactionEvent } from "@/types/reaction";
 
 type HistoryResp = { messages: ChatMessage[]; nextCursor: string | null };
 

@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { useLongPress } from "./UseLongPress";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ReactionsRow } from "./reactions/ReactionsRow";
 
 export default function MessageBubble({
   message,
@@ -18,6 +19,9 @@ export default function MessageBubble({
 }: MessageBubbleProps) {
   const formatTime = (timestamp: number | string | Date) =>
     new Date(timestamp).toLocaleTimeString([], {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -69,6 +73,9 @@ export default function MessageBubble({
 
         {/* message text */}
         <p className="px-2 break-words">{message.text}</p>
+        
+        {/* ✅ reactions summary (under text) */}
+        <ReactionsRow reactions={message.reactions} />
 
         {/* time */}
         <span className="absolute right-2 -bottom-4 text-[10px] text-gray-400">
