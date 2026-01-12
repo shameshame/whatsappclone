@@ -76,10 +76,25 @@ export function ChatListProvider({ children }: { children: React.ReactNode }) {
       addOrUpdateChat(payload.chat);
     };
 
+    
+
+    const onUnreadUpdated = (payload: { chatId: string; unreadCount: number }) => {
+          setAllChats(prev =>prev.map(chat => {
+            if (chat.id !== payload.chatId) return chat;
+            
+            const prevMe = chat.me ?? {role: "MEMBER" as const,unreadCount: 0};
+
+            return {...chat,me: {...prevMe,unreadCount: payload.unreadCount}};
+          }));
+    };
+
     chatListSocket.on("chat:created", onChatCreated);
+    
+    chatListSocket.on("chat:unread-updated", onUnreadUpdated);
 
     return () => {
       chatListSocket.off("chat:created", onChatCreated);
+      chatListSocket.off("chat:unread-updated", onUnreadUpdated);
       chatListSocket.disconnect();
       setSocket(null);
     };

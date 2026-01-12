@@ -1,4 +1,4 @@
-import { useState,useCallback } from "react"
+import { useState,useCallback, useRef, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar,AvatarImage} from "@/components/ui/avatar"
@@ -13,10 +13,28 @@ import { useAuth } from "./context/AuthContext"
 
 export default function ChatWindow() {
     const [input, setInput] = useState("")
+    const listRef = useRef<HTMLDivElement | null>(null);
+
     const { chatId } = useParams<{ chatId: string }>();
     const {user}=useAuth();
-    const { messages, loading, sendMessage,deleteMessage,updateMessage,reactToMessage,setReplyTo} = useChat(chatId);
+    const { messages, loading, sendMessage,deleteMessage,updateMessage,reactToMessage,setReplyTo,markReadDebounced} = useChat(chatId);
     const currentUser = user?.id
+
+
+    useEffect(() => {
+      const listElement = listRef.current;
+      if (!listElement) return;
+
+      const onScroll = () => {
+        if (isNearBottom(listElement, 32)) markReadDebounced();
+      };
+
+      listElement.addEventListener("scroll", onScroll, { passive: true });
+      // run once on mount too (if already at bottom)
+      onScroll();
+
+      return () => listElement.removeEventListener("scroll", onScroll);
+    }, [markReadDebounced]);
 
 
     // ✅ onEdit: called from MessageBubble → opens Edit UI → Save calls this
@@ -52,8 +70,11 @@ export default function ChatWindow() {
   );
 
 
+  function isNearBottom(element: HTMLElement, thresholdPx = 24) {
+      return element.scrollHeight - element.scrollTop - element.clientHeight <= thresholdPx;
+  }
 
-    const onSendMessage = useCallback(async () => {
+  const onSendMessage = useCallback(async () => {
       const text = input.trim();
       
       if (!text.trim()) return;
@@ -61,6 +82,12 @@ export default function ChatWindow() {
 
       try {
         await sendMessage(text);
+        
+        // ✅ if user is at bottom, mark as read (debounced)
+        const element = listRef.current;
+        if (element && isNearBottom(element, 32)) markReadDebounced();
+  
+
       } catch (error) {
         console.error("Failed to send message:", error);
       }   
@@ -79,7 +106,7 @@ export default function ChatWindow() {
       </div>
       
       {/* Messages */}
-      <div className="overflow-y-auto p-4 space-y-8  h-screen">
+      <div ref={listRef} className="overflow-y-auto p-4 space-y-8  h-screen">
         {loading ? <div>Loading…</div> : null}
         {messages.map((message: ChatMessage) => 
               <MessageBubble

@@ -2,7 +2,7 @@ import { RequestHandler } from "express";
 import { PrismaClient } from "@prisma/client";
 import { allChatsQuery, assertMemberOfChat, ensureDmChat, getReactionCounts, reactionSummary} from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
-import { emitToChatRoom,toChatSummary } from "../chat/helpers";
+import { emitToChatRoom,emitToUser,toChatSummary } from "../chat/helpers";
 
 
 
@@ -309,9 +309,8 @@ export const markChatRead: RequestHandler<ChatIdParams> = async (req, res) => {
       });
     });
 
-    // Optional: sync other tabs/devices for THIS user.
-    // If you have a "user room" concept, emit there. If not, you can skip this.
-    // emitToChatRoom(req, `user:${me}`, "chat:read", { chatId, unreadCount: 0 });
+     emitToUser(req, me, "chat:unread-updated", { chatId, unreadCount: 0 });
+
 
     return res.json({ ok: true, chatId, unreadCount: 0 });
   } catch (err: any) {

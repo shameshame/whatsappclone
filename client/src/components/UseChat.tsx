@@ -8,6 +8,7 @@ import { withAuthGuard } from "@/utilities/authErrorBoundary";
 import { ReplyTarget } from "@/types/replyTarget";
 import { applyReactionPatch } from "@/utilities/applyReactionPatch";
 import { MessageReactionEvent } from "@/types/reaction";
+import { debounce } from "@/utilities/debounce";
 
 type HistoryResp = { messages: ChatMessage[]; nextCursor: string | null };
 
@@ -29,11 +30,34 @@ export function useChat(chatId: string | undefined) {
   const socketRef = useRef<Socket | null>(null);
   const lastMessagesRef = useRef<ChatMessage[]>([]);
   
+  
   // Keep these stable and reusable
   const authedFetchJSON = useCallback(
     <T,>(fn: () => Promise<T>) => withAuthGuard(fn, forceLogout),
     [forceLogout]
   );
+
+  const markAsReadRaw = useCallback(async () => {
+    if (!chatId) return;
+
+    const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/mark-read`, {
+      method: "POST",
+      credentials: "include",
+    });
+
+    if (!res.ok) throw await httpErrorFromResponse(res);
+  }, [chatId]);
+
+  const markAsRead = useCallback(() => {
+    return authedFetchJSON(markAsReadRaw);
+ }, [authedFetchJSON, markAsReadRaw]);
+
+ const markReadDebounced = useMemo(
+  () => debounce(() => { void markAsRead(); }, 350),
+  [markAsRead]
+);
+
+
 
   const loadInitial = useCallback(() => {
     if (!chatId) return Promise.resolve();
@@ -50,6 +74,11 @@ export function useChat(chatId: string | undefined) {
         const data = (await res.json()) as HistoryResp;
         setMessages(data.messages);
         setNextCursor(data.nextCursor);
+
+        // ✅ ONLY after messages are loaded successfully
+        await markAsReadRaw();
+
+
       } finally {
         setLoading(false);
       }
@@ -72,6 +101,11 @@ export function useChat(chatId: string | undefined) {
       setNextCursor(data.nextCursor);
     });
   }, [chatId, nextCursor, authedFetchJSON]);
+
+  
+  
+
+
 
   const sendMessage = useCallback(
     (text: string) => {
@@ -242,6 +276,7 @@ const updateMessage = useCallback(
         if (prev.some(message => message.id === payload.message.id)) return prev;
         return [...prev, payload.message];
       });
+
     };
 
     const onUpdated = (payload: ChatUpdatedEvent) => {
@@ -318,6 +353,7 @@ const updateMessage = useCallback(
     replyTo,
     setReplyTo,
     clearReply,
+    markReadDebounced
 
   };
 }

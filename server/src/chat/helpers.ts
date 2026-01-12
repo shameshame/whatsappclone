@@ -14,6 +14,11 @@ export function emitToChatRoom(req: any, room: string, event: string, payload: a
     }
 }
 
+export function emitToUser(req: any, userId: string, event: string, payload: any) {
+  emitToChatRoom(req, `user:${userId}`, event, payload);
+}
+
+
 // helper for API response shaping
 export function populateParticipantsList(members:ChatMemberWithUser[]) {
   return members.map(member => ({

@@ -10,7 +10,8 @@ export function attachSocket(io: Server) {
   io.on("connection", (socket: Socket) => {
     const me = (socket as any).user?.id as string;
 
-    
+    // ✅ room for syncing across this user's devices
+    socket.join(`user:${me}`); 
 
     // ✅ works for BOTH DM and GROUP, because chatId is the Chat.id
     socket.on("chat:join", async ({ chatId }: { chatId: string }) => {
