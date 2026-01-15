@@ -5,3 +5,7 @@ export function debounce<T extends (...args: any[]) => void>(fn: T, wait: number
     time = window.setTimeout(() => fn(...args), wait);
   };
 }
+
+export function isNearBottom(element: HTMLElement, thresholdPx = 24) {
+      return element.scrollHeight - element.scrollTop - element.clientHeight <= thresholdPx;
+  }

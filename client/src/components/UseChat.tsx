@@ -8,11 +8,10 @@ import { withAuthGuard } from "@/utilities/authErrorBoundary";
 import { ReplyTarget } from "@/types/replyTarget";
 import { applyReactionPatch } from "@/utilities/applyReactionPatch";
 import { MessageReactionEvent } from "@/types/reaction";
-import { debounce } from "@/utilities/debounce";
 
 type HistoryResp = { messages: ChatMessage[]; nextCursor: string | null };
 
-// Socket payloads (match these on server)
+// Socket payloads
 type ChatMessageEvent = { chatId: string; message: ChatMessage; tempId?: string };
 type ChatDeletedEvent = { chatId: string; ids: string[] };
 type ChatUpdatedEvent = { chatId: string; message: ChatMessage };
@@ -29,35 +28,28 @@ export function useChat(chatId: string | undefined) {
 
   const socketRef = useRef<Socket | null>(null);
   const lastMessagesRef = useRef<ChatMessage[]>([]);
-  
-  
-  // Keep these stable and reusable
+
   const authedFetchJSON = useCallback(
     <T,>(fn: () => Promise<T>) => withAuthGuard(fn, forceLogout),
     [forceLogout]
   );
 
-  const markAsReadRaw = useCallback(async () => {
-    if (!chatId) return;
-
-    const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/mark-read`, {
-      method: "POST",
-      credentials: "include",
-    });
-
-    if (!res.ok) throw await httpErrorFromResponse(res);
-  }, [chatId]);
+  // keep rollback snapshot updated
+  useEffect(() => {
+    lastMessagesRef.current = messages;
+  }, [messages]);
 
   const markAsRead = useCallback(() => {
-    return authedFetchJSON(markAsReadRaw);
- }, [authedFetchJSON, markAsReadRaw]);
+    if (!chatId) return Promise.resolve();
 
- const markReadDebounced = useMemo(
-  () => debounce(() => { void markAsRead(); }, 350),
-  [markAsRead]
-);
-
-
+    return authedFetchJSON(async () => {
+      const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/mark-read`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw await httpErrorFromResponse(res);
+    });
+  }, [chatId, authedFetchJSON]);
 
   const loadInitial = useCallback(() => {
     if (!chatId) return Promise.resolve();
@@ -74,11 +66,6 @@ export function useChat(chatId: string | undefined) {
         const data = (await res.json()) as HistoryResp;
         setMessages(data.messages);
         setNextCursor(data.nextCursor);
-
-        // ✅ ONLY after messages are loaded successfully
-        await markAsReadRaw();
-
-
       } finally {
         setLoading(false);
       }
@@ -102,10 +89,7 @@ export function useChat(chatId: string | undefined) {
     });
   }, [chatId, nextCursor, authedFetchJSON]);
 
-  
-  
-
-
+  const clearReply = useCallback(() => setReplyTo(null), []);
 
   const sendMessage = useCallback(
     (text: string) => {
@@ -115,6 +99,8 @@ export function useChat(chatId: string | undefined) {
       if (!trimmed) return Promise.resolve();
 
       const tempId = `tmp:${crypto.randomUUID()}`;
+      const replyToId = replyTo?.id ?? null;
+      clearReply();
 
       const optimistic: ChatMessage = {
         id: tempId,
@@ -122,14 +108,10 @@ export function useChat(chatId: string | undefined) {
         senderId: user?.id as string,
         text: trimmed,
         createdAt: new Date().toISOString(),
-        replyToId: replyTo?.id ?? null
+        replyToId,
       };
 
-      // optimistic insert
       setMessages(prev => [...prev, optimistic]);
-
-      const replyToId = replyTo?.id ?? null;
-      clearReply();
 
       return authedFetchJSON(async () => {
         try {
@@ -137,79 +119,63 @@ export function useChat(chatId: string | undefined) {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: trimmed, tempId,replyToId }),
+            body: JSON.stringify({ text: trimmed, tempId, replyToId }),
           });
-
           if (!res.ok) throw await httpErrorFromResponse(res);
 
           const { message } = (await res.json()) as { message: ChatMessage };
-
-          // swap optimistic with server message
           setMessages(prev => prev.map(m => (m.id === tempId ? message : m)));
         } catch (err) {
-          // rollback optimistic on failure
           setMessages(prev => prev.filter(m => m.id !== tempId));
           throw err;
         }
       });
     },
-    [chatId, user?.id, replyTo, authedFetchJSON]
+    [chatId, user?.id, replyTo, clearReply, authedFetchJSON]
   );
 
-  
-const updateMessage = useCallback(
-  (messageId: string, text: string) => {
-    if (!chatId) return Promise.reject(new Error("No chat selected"));
+  const updateMessage = useCallback(
+    (messageId: string, text: string) => {
+      if (!chatId) return Promise.reject(new Error("No chat selected"));
+      const trimmed = text.trim();
+      if (!trimmed) return Promise.reject(new Error("Empty message"));
 
-    const trimmed = text.trim();
-    if (!trimmed) return Promise.reject(new Error("Empty message"));
+      const snapshot = lastMessagesRef.current;
 
-    // optimistic update
-    setMessages(prev =>
-      prev.map(message =>
-        message.id === messageId
-          ? { ...message, text: trimmed, editedAt: new Date().toISOString() } // keep it simple client-side
-          : message
-      )
-    );
+      setMessages(prev =>
+        prev.map(m => (m.id === messageId ? { ...m, text: trimmed } : m))
+      );
 
-    return authedFetchJSON(async () => {
-      try {
-        const res = await fetch(
-          `/api/chat/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/edit`,
-          {
-            method: "PUT",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content: trimmed }), // server expects { content }
-          }
-        );
+      return authedFetchJSON(async () => {
+        try {
+          const res = await fetch(
+            `/api/chat/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/edit`,
+            {
+              method: "PUT",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content: trimmed }),
+            }
+          );
+          if (!res.ok) throw await httpErrorFromResponse(res);
 
-        if (!res.ok) throw await httpErrorFromResponse(res);
-
-        const data = (await res.json()) as { message: ChatMessage };
-
-        // replace optimistic with server truth
-        setMessages(prev => prev.map(message => (message.id === messageId ? data.message : message)));
-        return data.message;
-      } catch (err) {
-        // rollback on failure
-        setMessages(lastMessagesRef.current);
-        throw err;
-      }
-    });
-  },
-  [chatId, authedFetchJSON]
-);
+          const data = (await res.json()) as { message: ChatMessage };
+          setMessages(prev => prev.map(m => (m.id === messageId ? data.message : m)));
+          return data.message;
+        } catch (err) {
+          setMessages(snapshot);
+          throw err;
+        }
+      });
+    },
+    [chatId, authedFetchJSON]
+  );
 
   const deleteMessage = useCallback(
     (messageId: string) => {
       if (!chatId) return Promise.reject(new Error("No chat selected"));
-
-      // snapshot BEFORE optimistic change
       const snapshot = lastMessagesRef.current;
 
-      // optimistic remove
       setMessages(prev => prev.filter(m => m.id !== messageId));
 
       return authedFetchJSON(async () => {
@@ -219,25 +185,22 @@ const updateMessage = useCallback(
             { method: "DELETE", credentials: "include" }
           );
           if (!res.ok) throw await httpErrorFromResponse(res);
-        } catch (error) {
-          // rollback
+        } catch (err) {
           setMessages(snapshot);
-          throw error;
+          throw err;
         }
       });
     },
     [chatId, authedFetchJSON]
   );
 
-   const reactToMessage = useCallback(
+  const reactToMessage = useCallback(
     (messageId: string, emoji: string) => {
       if (!chatId) return Promise.reject(new Error("No chat selected"));
 
       return authedFetchJSON(async () => {
         const res = await fetch(
-          `/api/chat/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(
-            messageId
-          )}/react`,
+          `/api/chat/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/react`,
           {
             method: "POST",
             credentials: "include",
@@ -246,16 +209,13 @@ const updateMessage = useCallback(
           }
         );
         if (!res.ok) throw await httpErrorFromResponse(res);
-        const data = (await res.json()) as { ok: true };
-        return data;
+        return (await res.json()) as { ok: true };
       });
     },
-    [chatId, forceLogout]
+    [chatId, authedFetchJSON]
   );
 
-  const clearReply = useCallback(() => setReplyTo(null), []);
-
-  // SOCKETS: connect once per chatId, join/leave only when chatId exists
+  // SOCKETS
   useEffect(() => {
     if (!chatId) return;
 
@@ -266,51 +226,41 @@ const updateMessage = useCallback(
       if (payload.chatId !== chatId) return;
 
       setMessages(prev => {
-        // If server echoes tempId, reconcile it
-        if (payload.tempId) {
-          const hasTemp = prev.some(m => m.id === payload.tempId);
-          if (hasTemp) return prev.map(message => (message.id === payload.tempId ? payload.message : message));
+        if (payload.tempId && prev.some(m => m.id === payload.tempId)) {
+          return prev.map(m => (m.id === payload.tempId ? payload.message : m));
         }
-
-        // Otherwise avoid duplicates by real id
-        if (prev.some(message => message.id === payload.message.id)) return prev;
+        if (prev.some(m => m.id === payload.message.id)) return prev;
         return [...prev, payload.message];
       });
-
     };
 
     const onUpdated = (payload: ChatUpdatedEvent) => {
       if (payload.chatId !== chatId) return;
-      setMessages(prev => prev.map(message => (message.id === payload.message.id ? payload.message : message)));
+      setMessages(prev => prev.map(m => (m.id === payload.message.id ? payload.message : m)));
     };
 
     const onDeleted = (payload: ChatDeletedEvent) => {
       if (payload.chatId !== chatId) return;
-      setMessages(prev => prev.filter(message => !payload.ids.includes(message.id)));
+      setMessages(prev => prev.filter(m => !payload.ids.includes(m.id)));
     };
 
-
     const onReaction = (payload: MessageReactionEvent) => {
-          if (payload.chatId !== chatId) return;
+      if (payload.chatId !== chatId) return;
 
-          setMessages(prev =>applyReactionPatch(prev, {
-              messageId: payload.messageId,
-              emoji: payload.emoji,
-              // if count becomes 0 you can either:have server return count=0, or omit summary on remove when count==0
-              summary: payload.summary.count > 0 ? payload.summary : undefined,
-            })
-          );
-    }
+      setMessages(prev =>
+        applyReactionPatch(prev, {
+          messageId: payload.messageId,
+          emoji: payload.emoji,
+          summary: payload.summary?.count > 0 ? payload.summary : undefined,
+        })
+      );
+    };
 
-
-    socket.on("connect", () => {
-      socket.emit("chat:join", { chatId });
-    });
-
+    socket.on("connect", () => socket.emit("chat:join", { chatId }));
     socket.on("chat:message", onMessage);
     socket.on("chat:updated", onUpdated);
     socket.on("chat:deleted", onDeleted);
-    socket.on("message:reaction", onReaction)
+    socket.on("message:reaction", onReaction);
 
     return () => {
       socket.emit("chat:leave", { chatId });
@@ -321,39 +271,27 @@ const updateMessage = useCallback(
       socket.disconnect();
       socketRef.current = null;
     };
-  
   }, [chatId]);
 
-
-
-    
- 
-
-  // Load history whenever chatId changes
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
-
-  // Keep lastMessagesRef updated for rollback use
-
-  useEffect(() => {
-    lastMessagesRef.current = messages;
-  }, [messages]);
-
 
   return {
     messages,
     loading,
     hasMore: !!nextCursor,
-    reactToMessage,
+
     loadMore,
     sendMessage,
     deleteMessage,
     updateMessage,
+    reactToMessage,
+
     replyTo,
     setReplyTo,
     clearReply,
-    markReadDebounced
 
+    markAsRead, // ✅ exported, UI decides *when*
   };
 }
