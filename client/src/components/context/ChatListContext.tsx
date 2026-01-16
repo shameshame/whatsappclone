@@ -12,6 +12,7 @@ import { httpErrorFromResponse } from "@/utilities/error-utils";
 
 type ChatContextValue = {
   allChats: ChatSummary[];
+  chatsById: Map<string, ChatSummary>;
   loadingChats: boolean;
   error?: string;
   getChatList: () => Promise<void>;
@@ -65,6 +66,12 @@ export function ChatListProvider({ children }: { children: React.ReactNode }) {
         return prev.map(chat =>chat.id === summary.id ? { ...chat, ...summary } : chat);
     });
   },[]);
+
+  const chatsById = React.useMemo(() => {
+   let chatMap = new Map<string, ChatSummary>();
+   allChats.forEach(chat => chatMap.set(chat.id, chat));
+   return chatMap;
+  }, [allChats]);
  
 
   // socket for "chat:created" (and later "chat:message" etc.)
@@ -102,6 +109,7 @@ export function ChatListProvider({ children }: { children: React.ReactNode }) {
 
   const chatListCtx: ChatContextValue = {
     allChats,
+    chatsById,
     loadingChats,
     error,
     getChatList,

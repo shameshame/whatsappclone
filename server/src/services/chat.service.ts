@@ -298,24 +298,55 @@ export const markChatRead: RequestHandler<ChatIdParams> = async (req, res) => {
   if (!me) return res.sendStatus(401);
   if (!chatId) return res.status(400).json({ ok: false, code: "missing-chatId" });
 
-  try {
-    // ensure chat exists + membership (throws 403 if not member)
-    await prisma.$transaction(async (tx) => {
-      await assertMemberOfChat(tx, chatId, me);
+  if (!chatId) {
+    return res.status(400).json({ ok: false, code: "missing-chatId" });
+  }
 
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1️⃣ ensure membership + load unreadCount
+      const member = await tx.chatMember.findUnique({
+        where: { chatId_userId: { chatId, userId: me } },
+        select: { unreadCount: true },
+      });
+
+      if (!member) {
+        throw Object.assign(new Error("not-member"), { status: 403 });
+      }
+
+      // 2️⃣ short-circuit if already read
+      if (member.unreadCount === 0) {
+        return { unreadCount: 0, changed: false };
+      }
+
+      // 3️⃣ update unreadCount → 0
       await tx.chatMember.update({
         where: { chatId_userId: { chatId, userId: me } },
         data: { unreadCount: 0 },
       });
+
+      return { unreadCount: 0, changed: true };
     });
 
-     emitToUser(req, me, "chat:unread-updated", { chatId, unreadCount: 0 });
+    // 4️⃣ notify *all* this user's devices ONLY if changed
+    if (result.changed) {
+      emitToUser(req, me, "chat:unread-updated", {
+        chatId,
+        unreadCount: 0,
+      });
+    }
 
-
-    return res.json({ ok: true, chatId, unreadCount: 0 });
+    return res.json({
+      ok: true,
+      chatId,
+      unreadCount: result.unreadCount,
+      changed: result.changed,
+    });
   } catch (err: any) {
     const status = err?.status ?? 500;
-    return res.status(status).json({ ok: false, code: err?.message ?? "mark-read-failed" });
+    return res
+      .status(status)
+      .json({ ok: false, code: err?.message ?? "mark-read-failed" });
   }
 };
 

@@ -9,13 +9,17 @@ import { useChat } from "../custom-hooks/UseChat"
 import { ChatMessage } from "@shared/types/chatMessage";
 import {ChatTopMenu} from "./ChatTopMenu";
 import { useNearBottom } from "../custom-hooks/useNearBottom"
+import { useChats } from "./context/ChatListContext"
 
 
 export default function ChatWindow() {
     const [input, setInput] = useState("")
     const windowRef = useRef<HTMLDivElement | null>(null);
     const { chatId } = useParams<{ chatId: string }>();
+    const {chatsById} = useChats();
     const { messages, loading, sendMessage,deleteMessage,updateMessage,reactToMessage,setReplyTo,markAsRead} = useChat(chatId);
+    const unreadCount = chatId ? (chatsById.get(chatId)?.me?.unreadCount ?? 0) : 0;
+    const shouldMarkAsRead = unreadCount > 0;
   
 
 
@@ -23,7 +27,7 @@ export default function ChatWindow() {
   useNearBottom(windowRef, {
     thresholdPx: 32,
     debounceMs: 350,
-    enabled: !!chatId,
+    enabled: !!chatId && shouldMarkAsRead,
     onNearBottom: markAsRead,
   });
 

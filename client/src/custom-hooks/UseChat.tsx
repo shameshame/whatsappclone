@@ -28,6 +28,7 @@ export function useChat(chatId: string | undefined) {
 
   const socketRef = useRef<Socket | null>(null);
   const lastMessagesRef = useRef<ChatMessage[]>([]);
+  const markReadInFlight = useRef(false);
 
   const authedFetchJSON = useCallback(
     <T,>(fn: () => Promise<T>) => withAuthGuard(fn, forceLogout),
@@ -41,6 +42,11 @@ export function useChat(chatId: string | undefined) {
 
   const markAsRead = useCallback(() => {
     if (!chatId) return Promise.resolve();
+    if (markReadInFlight.current) return Promise.resolve();
+
+    markReadInFlight.current = true;
+
+
 
     return authedFetchJSON(async () => {
       const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/mark-read`, {
@@ -68,6 +74,7 @@ export function useChat(chatId: string | undefined) {
         setNextCursor(data.nextCursor);
       } finally {
         setLoading(false);
+        markReadInFlight.current = false;
       }
     });
   }, [chatId, authedFetchJSON]);
