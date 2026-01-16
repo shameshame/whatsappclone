@@ -3,7 +3,7 @@ import { ChatMessage } from "@shared/types/chatMessage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { httpErrorFromResponse } from "@/utilities/error-utils";
-import { useAuth } from "./context/AuthContext";
+import { useAuth } from "../components/context/AuthContext";
 import { withAuthGuard } from "@/utilities/authErrorBoundary";
 import { ReplyTarget } from "@/types/replyTarget";
 import { applyReactionPatch } from "@/utilities/applyReactionPatch";

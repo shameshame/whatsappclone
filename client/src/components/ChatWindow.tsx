@@ -5,10 +5,10 @@ import { Avatar,AvatarImage} from "@/components/ui/avatar"
 import { Send} from "lucide-react"
 import MessageBubble from "./MessageBubble"
 import { useParams } from "react-router"
-import { useChat } from "./UseChat"
+import { useChat } from "../custom-hooks/UseChat"
 import { ChatMessage } from "@shared/types/chatMessage";
 import {ChatTopMenu} from "./ChatTopMenu";
-import { useNearBottom } from "./useNearBottom"
+import { useNearBottom } from "../custom-hooks/useNearBottom"
 
 
 export default function ChatWindow() {

@@ -4,7 +4,7 @@ import { MessageBubbleProps } from "@/types/messageBubble";
 import { useAuth } from "./context/AuthContext";
 import { isLikelyHandheld } from "@/utilities/device";
 import { useMemo, useState } from "react";
-import { useLongPress } from "./UseLongPress";
+import { useLongPress } from "../custom-hooks/UseLongPress";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReactionsRow } from "./reactions/ReactionsRow";

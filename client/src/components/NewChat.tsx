@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { useUserDirectory } from "./useUserDirectory";
+import { useUserDirectory } from "../custom-hooks/useUserDirectory";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { httpErrorFromResponse } from "@/utilities/error-utils";
 import { CreateGroupDialog } from "./CreateGroupDialog";
