@@ -46,7 +46,7 @@ export function ChatMore(){
             <span>Connected devices</span>
           </DropdownMenuItem>
 
-          <DropdownMenuItem onSelect={() => navigate("/settings")}>
+          <DropdownMenuItem onSelect={() => navigate("phone/settings")}>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
           </DropdownMenuItem>

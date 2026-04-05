@@ -1,4 +1,4 @@
-import {BrowserRouter,Routes,Route} from "react-router"
+import {BrowserRouter,Routes,Route, Outlet} from "react-router"
 import ChatWindow from './components/ChatWindow'
 import { QrProvider } from "./components/context/QrContext";
 import QRGenerator from "./components/QRGenerator";
@@ -12,6 +12,8 @@ import { ConnectedDevices } from "./components/ConnectedDevices";
 import ChatPage from "./components/ChatPage";
 import ChatList from "./components/ChatList";
 import { ChatListProvider } from "./components/context/ChatListContext";
+import Settings from "./components/Settings";
+import { Account } from "./components/Account";
 
 
 
@@ -28,10 +30,14 @@ function App() {
            <ChatListProvider>
           <Routes>
             <Route path="/" element={<Home/>}/>
-            <Route path="/register" element={<CreateAccount/>} />
-            <Route path="/phone/login" element={<LoginPasskey/>} />
-            <Route path="/phone/devices" element={<ConnectedDevices/>}/>
-            <Route path="/phone/chats" element={<Protected><ChatList/></Protected>} />
+            <Route path="/phone" element={<Outlet />}>
+              <Route path="register" element={<CreateAccount/>} />
+              <Route path="login" element={<LoginPasskey/>} />
+              <Route path="devices" element={<ConnectedDevices/>}/>
+              <Route path="chats" element={<Protected><ChatList/></Protected>} />
+              <Route path="settings" element={<Protected><Settings/></Protected>} />
+              <Route path="account" element={<Protected><Account/></Protected>} />
+            </Route>
             <Route path="/scan" element={<Protected><QrProvider> <ScanPage/> </QrProvider></Protected>} />
             <Route path="/qr" element={<QrProvider><QRGenerator/></QrProvider>} />
             <Route path="/chat" element={<Protected><ChatPage/></Protected>} />

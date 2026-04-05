@@ -1,26 +1,20 @@
-// src/pages/Login.tsx
-
-import {useLocation, useNavigate } from "react-router";
 import { useAuth } from "./context/AuthContext";
 import { isLikelyHandheld } from "@/utilities/device";
 
+import { Navigate } from "react-router";
+
+
 const Home = () => {
- 
- const {status}=useAuth() // 'authenticated' | 'unauthenticated' | 'loading'
- const navigate = useNavigate()
- const { pathname } = useLocation();
+  const { status } = useAuth();
 
-  // If already authenticated, decide where your app should land
-  if (status === "authenticated") navigate("/chat",{replace:true})
-  
+  if (status === "loading") return null;
 
-  // Only auto-route from the *home* path
-  else if (status === "unauthenticated" && pathname === "/") {
-    const target = isLikelyHandheld() ? "/phone/login" : "/qr";
-    navigate(target,{replace:true})
+  if (status === "authenticated") {
+    return <Navigate to="/chat" replace />;
   }
- 
-   return null
+
+  const target = isLikelyHandheld() ? "/phone/login" : "/qr";
+  return <Navigate to={target} replace />;
 };
 
 export default Home;
