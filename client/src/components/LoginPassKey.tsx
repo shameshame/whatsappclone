@@ -44,7 +44,7 @@ export default function LoginPasskey() {
     }) as PublicKeyCredential | null;
 
     if (!assertion) {
-      intent==="forcePicker" ? navigate("/register", { replace: true }) : setBanner(bannerFromError({ kind: "webauthn-cancel", message: "" }))
+      intent==="forcePicker" ? navigate("/phone/register", { replace: true }) : setBanner(bannerFromError({ kind: "webauthn-cancel", message: "" }))
       return;
     }
 
@@ -57,7 +57,7 @@ export default function LoginPasskey() {
     
     // If force picker was used, be decisive: go register on *any* failure
     if (intent === "forcePicker" && (appErr.kind === "webauthn-cancel" || appErr.kind === "http" || appErr.kind === "network")) {
-      return navigate("/register", { replace: true });
+      return navigate("/phone/register", { replace: true });
     }
     
     setBanner(bannerFromError(appErr));
@@ -137,7 +137,7 @@ const login = useCallback<(intent: LoginIntent) => Promise<void>>(async (intent=
       </Card>
       {banner && (<Banner message={banner.msg} variant={banner.variant} onClose={() => setBanner(null)} 
                    action={
-                    <Button size="sm" onClick={() => navigate("/register")}>
+                    <Button size="sm" onClick={() => navigate("/phone/register")}>
                                     Create account
                     </Button>
                    }

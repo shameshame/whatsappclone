@@ -1,6 +1,7 @@
 import { ChatMemberRole } from "@prisma/client";
 import { ChatMemberWithUser, ChatWithSummaryRelations, LastMessageSelected } from "../db/chat/types";
 import { ChatSummary } from "@shared/types/chatSummary";
+import multer from "multer";
 
 const CHAT_NS = "/chat";
 
@@ -87,3 +88,31 @@ export function toChatSummary(
       : null,
   };
 }
+
+// Multer setup for handling voice message uploads
+
+export const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10 MB
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      "audio/webm",
+      "audio/ogg",
+      "audio/mpeg",
+      "audio/mp4",
+      "audio/wav",
+      "audio/x-wav",
+    ];
+
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+      return;
+    }
+
+    cb(new Error(`unsupported-audio-type:${file.mimetype}`));
+  },
+});
+
+

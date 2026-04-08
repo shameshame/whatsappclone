@@ -3,13 +3,16 @@ import { MessageActionsMenu } from "./messageActions/MessageActionsMenu";
 import { MessageBubbleProps } from "@/types/messageBubble";
 import { useAuth } from "./context/AuthContext";
 import { isLikelyHandheld } from "@/utilities/device";
-import { useMemo, useState } from "react";
+import { useMemo, useState,memo } from "react";
 import { useLongPress } from "../custom-hooks/UseLongPress";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReactionsRow } from "./reactions/ReactionsRow";
+import { formatTime } from "@shared/utils/formatTime";
 
-export default function MessageBubble({
+import  MessageContent  from "./MessageContent";
+
+function MessageBubble({
   message,
   avatarUrl,
   onEdit,
@@ -17,15 +20,6 @@ export default function MessageBubble({
   onReact,
   onReply,
 }: MessageBubbleProps) {
-  const formatTime = (timestamp: number | string | Date) =>
-    new Date(timestamp).toLocaleTimeString([], {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
   const { user } = useAuth();
   const isMe = user?.id === message.senderId;
 
@@ -36,23 +30,27 @@ export default function MessageBubble({
 
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // ✅ long press on the whole bubble (mobile only)
   const longPress = useLongPress({
     enabled: handheld,
     onLongPress: () => setMenuOpen(true),
   });
 
+  
+
   return (
-    <div className={cn("flex items-end gap-2", isMe ? "justify-end" : "justify-start")}>
-      {/* ✅ `group` is needed for group-hover */}
+    <div
+      className={cn(
+        "flex items-end gap-2",
+        isMe ? "justify-end" : "justify-start"
+      )}
+    >
       <div
         className={cn(
-          "group relative max-w-xs min-w-[50px] rounded-xl border px-4 py-2 text-sm",
+          "group relative max-w-xs min-w-[50px] rounded-xl border px-4 py-2 text-sm shadow-sm",
           isMe ? "bg-green-500 text-white" : "bg-stone-50 text-foreground"
         )}
-        {...(handheld ? longPress : {})} // ✅ spread handlers here
+        {...(handheld ? longPress : {})}
       >
-        {/* ✅ Desktop: down-arrow trigger appears on hover */}
         {!handheld && (
           <Button
             type="button"
@@ -60,9 +58,9 @@ export default function MessageBubble({
             size="icon"
             onClick={() => setMenuOpen(true)}
             className={cn(
-              "absolute top-1 opacity-0 group-hover:opacity-100 transition",
+              "absolute top-1 z-10 opacity-0 transition group-hover:opacity-100",
               isMe ? "left-1" : "right-1",
-              "h-7 w-7 rounded-full bg-white/70 hover:bg-white shadow-sm",
+              "h-7 w-7 rounded-full bg-white/70 shadow-sm hover:bg-white",
               "text-muted-foreground hover:text-foreground"
             )}
             aria-label="Message actions"
@@ -71,21 +69,26 @@ export default function MessageBubble({
           </Button>
         )}
 
-        {/* message text */}
-        <p className="px-2 break-words">{message.text}</p>
-        
-        {/* ✅ reactions summary (under text) */}
-        <ReactionsRow reactions={message.reactions} />
+        <div className="pr-6">
+          <MessageContent message={message} isMe={isMe} />
+        </div>
 
-        {/* time */}
-        <span className="absolute right-2 -bottom-4 text-[10px] text-gray-400">
+        <div className="mt-2 px-2">
+          <ReactionsRow reactions={message.reactions ?? []} />
+        </div>
+
+        <span
+          className={cn(
+            "mt-2 block px-2 text-[10px]",
+            isMe ? "text-white/70" : "text-gray-400"
+          )}
+        >
           {formatTime(message.createdAt)}
         </span>
 
-        {/* ✅ Menu is controlled by MessageBubble state */}
         <div
           className={cn(
-            "absolute top-1",
+            "absolute top-1 z-20",
             isMe ? "left-1" : "right-1",
             handheld ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           )}
@@ -109,3 +112,15 @@ export default function MessageBubble({
     </div>
   );
 }
+
+
+export default memo(
+  MessageBubble,
+  (prev, next) =>
+    prev.message === next.message &&
+    prev.avatarUrl === next.avatarUrl &&
+    prev.onEdit === next.onEdit &&
+    prev.onDelete === next.onDelete &&
+    prev.onReact === next.onReact &&
+    prev.onReply === next.onReply
+);

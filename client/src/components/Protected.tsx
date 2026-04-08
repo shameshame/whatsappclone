@@ -1,7 +1,7 @@
 import { useAuth } from "./context/AuthContext";
-import { Navigate,useLocation} from "react-router";
+import { Navigate,Outlet,useLocation} from "react-router";
 
-export default function Protected({ children }: { children: React.ReactNode }) {
+export default function Protected() {
   const auth = useAuth(); // { status: 'authenticated' | 'unauthenticated' | 'loading', ... }
   const here = useLocation().pathname;
   
@@ -14,5 +14,5 @@ export default function Protected({ children }: { children: React.ReactNode }) {
     : <Navigate to="/qr" replace />;
     
   }
-  return <>{children}</>;
+  return <Outlet />;
 }

@@ -1,53 +1,82 @@
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-
-
-import { LogOut, ShieldUser } from "lucide-react";
-import { useNavigate } from "react-router";
 import { useState } from "react";
-import { useAuth } from "./context/AuthContext"; // adjust path if needed
+import {
+  ArrowLeft,
+  Laptop,
+  LogOut,
+  ShieldUser,
+  UserCircle,
+} from "lucide-react";
+import { useNavigate } from "react-router";
 
-export function Account() {
+import { Button } from "@/components/ui/button";
+import SettingsRow  from "./settings/SettingsRow";
+import { useAuth } from "./context/AuthContext"; // adjust path
+
+export default function AccountPage() {
   const navigate = useNavigate();
-  const { forceLogout } = useAuth();
-
+  const { logout } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout() {
-      forceLogout();
-      navigate("/phone/login", { replace: true });
+    try {
+      setLoggingOut(true);
+      await logout();
+     
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setLoggingOut(false);
     }
-    
+  }
 
   return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger>
-        <ShieldUser className="mr-2 h-4 w-4" />
-        <span>Account</span>
-      </DropdownMenuSubTrigger>
+    <main className="min-h-screen bg-background">
+      <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-xl items-center gap-3 px-4">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Go back"
+            onClick={() => navigate("/settings")}
+            className="rounded-full"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
 
-      <DropdownMenuSubContent className="w-48">
-        <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault();
-            void handleLogout();
-          }}
-          disabled={loggingOut}
-          className="text-red-600 focus:text-red-600"
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log Out</span>
-        </DropdownMenuItem>
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
+          <div className="flex items-center gap-2">
+            <ShieldUser className="h-5 w-5" />
+            <h1 className="text-lg font-semibold">Account</h1>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-xl p-4">
+        <div className="space-y-3">
+          <SettingsRow
+            icon={<UserCircle className="h-5 w-5" />}
+            label="Profile"
+            onClick={() => navigate("/settings/account/profile")}
+          />
+
+          <SettingsRow
+            icon={<Laptop className="h-5 w-5" />}
+            label="Connected devices"
+            onClick={() => navigate("/phone/devices")}
+          />
+
+          <SettingsRow
+            icon={<LogOut className="h-5 w-5" />}
+            label={loggingOut ? "Logging out..." : "Log out"}
+            onClick={() => {
+              if (!loggingOut) void handleLogout();
+            }}
+            destructive
+            trailing={null}
+            
+          />
+        </div>
+      </div>
+    </main>
   );
 }
-

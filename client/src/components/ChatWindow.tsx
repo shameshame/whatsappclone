@@ -10,6 +10,8 @@ import { ChatMessage } from "@shared/types/chatMessage";
 import {ChatTopMenu} from "./ChatTopMenu";
 import { useNearBottom } from "../custom-hooks/useNearBottom"
 import { useChats } from "./context/ChatListContext"
+import VoiceRecorderButton from "./VoiceRecordButton";
+import { ReplyTarget } from "@/types/replyTarget"
 
 
 export default function ChatWindow() {
@@ -17,7 +19,7 @@ export default function ChatWindow() {
     const windowRef = useRef<HTMLDivElement | null>(null);
     const { chatId } = useParams<{ chatId: string }>();
     const {chatsById} = useChats();
-    const { messages, loading, sendMessage,deleteMessage,updateMessage,reactToMessage,setReplyTo,markAsRead} = useChat(chatId);
+    const { messages, loading, sendTextMessage,sendVoiceMessage,deleteMessage,updateMessage,reactToMessage,setReplyTo,markAsRead} = useChat(chatId);
     const unreadCount = chatId ? (chatsById.get(chatId)?.me?.unreadCount ?? 0) : 0;
     const shouldMarkAsRead = unreadCount > 0;
   
@@ -30,6 +32,25 @@ export default function ChatWindow() {
     enabled: !!chatId && shouldMarkAsRead,
     onNearBottom: markAsRead,
   });
+
+
+  function toReplyTarget(message: ChatMessage): ReplyTarget {
+      if (message.type === "voice") {
+        return {
+          id: message.id,
+          senderId: message.senderId,
+          type: "voice",
+          voice: { durationSec: message.voice?.durationSec ?? 0,},
+        };
+      }
+
+      return {
+        id: message.id,
+        senderId: message.senderId,
+        type: "text",
+        text: message.text ?? "",
+      };
+}
 
     // ✅ onEdit: called from MessageBubble → opens Edit UI → Save calls this
   const onEdit = useCallback(
@@ -58,23 +79,33 @@ export default function ChatWindow() {
   // (optional) reply
   const onReply = useCallback(
     (message: ChatMessage) => {
-      setReplyTo?.({ id: message.id, text: message.text, senderId: message.senderId });
+      setReplyTo(toReplyTarget(message));
     },
     [setReplyTo]
   );
 
-  const onSendMessage = useCallback(async () => {
+  const onSendTextMessage = useCallback(async () => {
       const text = input.trim();
       
       if (!text.trim()) return;
       setInput("");
 
       try {
-        await sendMessage(text);
+        await sendTextMessage(text);
       } catch (error) {
         console.error("Failed to send message:", error);
       }   
-    }, [sendMessage,input]);
+    }, [sendTextMessage,input]);
+
+  const onSendVoiceMessage = useCallback(
+    async (audioBlob: Blob, durationSec: number) => {
+      try {
+        await sendVoiceMessage(audioBlob, durationSec);
+      } catch (error) {
+        console.error("Failed to send voice message:", error);
+      }
+    },[sendVoiceMessage]
+  );
     
   return (
     <div className="flex-1 bg-[#f7f1ea] flex flex-col  h-screen">
@@ -112,11 +143,12 @@ export default function ChatWindow() {
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={async (event) => {
-            if (event.key === "Enter") onSendMessage();
+            if (event.key === "Enter") onSendTextMessage();
           }
          }
         />
-        <Button size="icon" onClick={onSendMessage} disabled={!input.trim()}>
+        <VoiceRecorderButton onSendVoice={onSendVoiceMessage} disabled={!chatId} />
+        <Button size="icon" onClick={onSendTextMessage} disabled={!input.trim()}>
           <Send className="h-4 w-4" />
         </Button>
       </div>

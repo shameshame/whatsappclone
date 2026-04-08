@@ -136,11 +136,6 @@ export async function reactionSummary(messageId: string,emoji: string,userId: st
   return summary;
 }
 
-
-
-
-
-
 export async function ensureDmChat(
   tx: PrismaClient | Prisma.TransactionClient,
   user1: string,

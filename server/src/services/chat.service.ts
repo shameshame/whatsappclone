@@ -3,6 +3,9 @@ import { PrismaClient } from "@prisma/client";
 import { allChatsQuery, assertMemberOfChat, ensureDmChat, getReactionCounts, reactionSummary} from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
 import { emitToChatRoom,emitToUser,toChatSummary } from "../chat/helpers";
+import fs from "fs/promises";
+import path from "path";
+import { getVoiceRequestData, storeVoiceFile, createVoiceMessageInTx } from "../chat/voiceHelpers";
 
 
 
@@ -129,7 +132,7 @@ export const getChatHistory: RequestHandler = async (req: any, res: any) => {
 };
 
 // POST /api/chat/:chatId/send
-export const sendMessage: RequestHandler<ChatIdParams> = async (req, res) => {
+export const sendTextMessage: RequestHandler<ChatIdParams> = async (req, res) => {
   const me = (req as any).user.id as string;
   const { chatId }  = req.params;
   const text = String(req.body?.text ?? "").trim();
@@ -144,9 +147,9 @@ export const sendMessage: RequestHandler<ChatIdParams> = async (req, res) => {
       await assertMemberOfChat(tx, chatId as string, me);
 
       const created = await tx.message.create({
-        data: { chatId, senderId: me, text, kind: "text" },
+        data: { chatId, senderId: me, text, type: "text" },
         select: {
-          id: true, text: true, kind: true, createdAt: true, senderId: true,
+          id: true, text: true, type: true, createdAt: true, senderId: true,
           author: { select: { id: true, displayName: true, handle: true } },
         },
       });
@@ -174,7 +177,38 @@ export const sendMessage: RequestHandler<ChatIdParams> = async (req, res) => {
   }
 };
 
+export const sendVoiceMessage: RequestHandler<ChatIdParams> = async (req, res) => {
+  try {
+    const { me, chatId, file, tempId, replyToId, durationSec } = getVoiceRequestData(req);
 
+    const { publicUrl } = await storeVoiceFile(file);
+
+    const message = await prisma.$transaction((tx) =>
+      createVoiceMessageInTx(tx, {
+        chatId,
+        me,
+        replyToId,
+        durationSec,
+        publicUrl,
+        mimeType: file.mimetype,
+      })
+    );
+
+    emitToChatRoom(req, chatId, "chat:message", {
+      chatId,
+      message,
+      tempId,
+    });
+
+    return res.json({ ok: true, message });
+  } catch (err: any) {
+    const status = err?.status ?? 500;
+    return res.status(status).json({
+      ok: false,
+      message: err?.message ?? "send-voice-failed",
+    });
+  }
+};
 
 
 // PATCH /api/chat/:chatId/messages/:messageId  { content: string }
@@ -208,7 +242,7 @@ export const editMessage: RequestHandler = async (req, res) => {
         isDeleted: true,
         deletedAt: true,
         createdAt: true,
-        kind: true,
+        type: true,
         author: { select: { id: true, displayName: true, handle: true } },
       },
     });

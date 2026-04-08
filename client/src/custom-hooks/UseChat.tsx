@@ -1,6 +1,6 @@
 // src/hooks/useDirectChat.ts
 import { ChatMessage } from "@shared/types/chatMessage";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { httpErrorFromResponse } from "@/utilities/error-utils";
 import { useAuth } from "../components/context/AuthContext";
@@ -30,6 +30,35 @@ export function useChat(chatId: string | undefined) {
   const lastMessagesRef = useRef<ChatMessage[]>([]);
   const markReadInFlight = useRef(false);
 
+//Helpers to create the base of an optimistic message (id, timestamps, etc.)
+  function createOptimisticBase(params: {
+    chatId: string;
+    senderId: string;
+    replyToId?: string | null;
+  }) {
+      return {
+        id: `tmp:${crypto.randomUUID()}`,
+        chatId: params.chatId,
+        senderId: params.senderId,
+        createdAt: new Date().toISOString(),
+        replyToId: params.replyToId ?? null,
+      };
+    }
+
+  async function runOptimisticMessage(optimistic: ChatMessage,send: () => Promise<ChatMessage>) {
+      setMessages(prev => [...prev, optimistic]);
+
+      try {
+        const saved = await send();
+        setMessages(prev => prev.map(message => (message.id === optimistic.id ? saved : message)));
+        return saved;
+      } catch (err) {
+        
+        setMessages(prev => prev.filter(message => message.id !== optimistic.id));
+        throw err;
+      }
+  }
+
   const authedFetchJSON = useCallback(
     <T,>(fn: () => Promise<T>) => withAuthGuard(fn, forceLogout),
     [forceLogout]
@@ -45,9 +74,7 @@ export function useChat(chatId: string | undefined) {
     if (markReadInFlight.current) return Promise.resolve();
 
     markReadInFlight.current = true;
-
-
-
+  
     return authedFetchJSON(async () => {
       const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/mark-read`, {
         method: "POST",
@@ -56,6 +83,9 @@ export function useChat(chatId: string | undefined) {
       if (!res.ok) throw await httpErrorFromResponse(res);
     });
   }, [chatId, authedFetchJSON]);
+
+
+
 
   const loadInitial = useCallback(() => {
     if (!chatId) return Promise.resolve();
@@ -98,48 +128,118 @@ export function useChat(chatId: string | undefined) {
 
   const clearReply = useCallback(() => setReplyTo(null), []);
 
-  const sendMessage = useCallback(
-    (text: string) => {
+  const sendTextMessage = useCallback(
+  (text: string) => {
+    if (!chatId) return Promise.reject(new Error("No chat selected"));
+
+    const trimmed = text.trim();
+    if (!trimmed) return Promise.resolve();
+
+    const replyToId = replyTo?.id ?? null;
+    clearReply();
+
+    const base = createOptimisticBase({
+      chatId,
+      senderId: user?.id as string,
+      replyToId,
+    });
+
+    const optimisticText: ChatMessage = {
+      ...base,
+      type: "text",
+      text: trimmed,
+    };
+
+    return authedFetchJSON(() =>
+      runOptimisticMessage(optimisticText, async () => {
+        const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/send`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: trimmed,
+            tempId: base.id,
+            replyToId,
+          }),
+        });
+
+        if (!res.ok) throw await httpErrorFromResponse(res);
+
+        const { message } = (await res.json()) as { message: ChatMessage };
+        return message;
+      })
+    );
+  },
+  [chatId, user?.id, replyTo, clearReply, authedFetchJSON]
+);
+
+const sendVoiceMessage = useCallback(
+    (audioBlob: Blob, durationSec: number) => {
       if (!chatId) return Promise.reject(new Error("No chat selected"));
+      if (!user?.id) return Promise.reject(new Error("No authenticated user"));
 
-      const trimmed = text.trim();
-      if (!trimmed) return Promise.resolve();
-
-      const tempId = `tmp:${crypto.randomUUID()}`;
       const replyToId = replyTo?.id ?? null;
       clearReply();
 
-      const optimistic: ChatMessage = {
-        id: tempId,
+      const base = createOptimisticBase({
         chatId,
-        senderId: user?.id as string,
-        text: trimmed,
-        createdAt: new Date().toISOString(),
+        senderId: user.id,
         replyToId,
+      });
+
+      const localUrl = URL.createObjectURL(audioBlob);
+
+      const optimisticVoice: ChatMessage = {
+        ...base,
+        type: "voice",
+        voice: {
+          url: localUrl,
+          mimeType: audioBlob.type || "audio/webm",
+          durationSec,
+        },
       };
 
-      setMessages(prev => [...prev, optimistic]);
+      return authedFetchJSON(() =>
+        runOptimisticMessage(optimisticVoice, async () => {
+          const formData = new FormData();
+          formData.append("audio", audioBlob, "voice-message.webm");
+          formData.append("tempId", base.id);
+          formData.append("replyToId", replyToId ?? "");
+          formData.append("durationSec", String(durationSec));
 
-      return authedFetchJSON(async () => {
-        try {
-          const res = await fetch(`/api/chat/${encodeURIComponent(chatId)}/send`, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: trimmed, tempId, replyToId }),
-          });
-          if (!res.ok) throw await httpErrorFromResponse(res);
+          try {
+            const res = await fetch(
+              `/api/chat/${encodeURIComponent(chatId)}/send-voice`,
+              {
+                method: "POST",
+                credentials: "include",
+                body: formData,
+              }
+            );
 
-          const { message } = (await res.json()) as { message: ChatMessage };
-          setMessages(prev => prev.map(m => (m.id === tempId ? message : m)));
-        } catch (err) {
-          setMessages(prev => prev.filter(m => m.id !== tempId));
-          throw err;
-        }
-      });
+            if (!res.ok) throw await httpErrorFromResponse(res);
+
+            const { message } = (await res.json()) as { message: ChatMessage };
+            return message;
+          } finally {
+            URL.revokeObjectURL(localUrl);
+          }
+        })
+      );
     },
-    [chatId, user?.id, replyTo, clearReply, authedFetchJSON]
+    [chatId, user?.id, replyTo, clearReply, authedFetchJSON, runOptimisticMessage]
   );
+
+
+
+
+
+
+
+
+
+
+
 
   const updateMessage = useCallback(
     (messageId: string, text: string) => {
@@ -290,11 +390,11 @@ export function useChat(chatId: string | undefined) {
     hasMore: !!nextCursor,
 
     loadMore,
-    sendMessage,
+    sendTextMessage,
+    sendVoiceMessage,
     deleteMessage,
     updateMessage,
     reactToMessage,
-
     replyTo,
     setReplyTo,
     clearReply,

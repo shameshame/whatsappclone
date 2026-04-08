@@ -49,8 +49,8 @@ model Message {
   id        String   @id @default(cuid())
   chatId    String // e.g. "dm:<userA>|<userB>" sorted
   senderId  String // User.id
-  kind      String   @default("text") // future: "image", "file", etc.
-  text      String
+  type      MessageType @default(text) // future: "image", "file", etc.
+  text      String?
   createdAt DateTime @default(now())
 
   // new stuff
@@ -61,6 +61,10 @@ model Message {
   chat            Chat              @relation(fields: [chatId], references: [id], onDelete: Cascade)
   author          User              @relation(fields: [senderId], references: [id])
   MessageReaction MessageReaction[]
+
+  voiceUrl          String?
+  voiceMimeType     String?
+  voiceDurationSec  Int?
 
   @@index([chatId, createdAt(sort: Desc)])
 }
@@ -121,4 +125,10 @@ enum ChatType {
 enum ChatMemberRole {
   MEMBER
   ADMIN
+}
+
+enum MessageType {
+  text
+  voice
+  image
 }

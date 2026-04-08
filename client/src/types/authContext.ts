@@ -12,6 +12,7 @@ export type AuthStatus= {
 export type AuthContextValue = AuthStatus & {
   getMe: () => Promise<void>;
   forceLogout: () => void;
+  logout: () => Promise<void>;
 };
 
 

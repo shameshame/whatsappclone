@@ -12,8 +12,9 @@ import { ConnectedDevices } from "./components/ConnectedDevices";
 import ChatPage from "./components/ChatPage";
 import ChatList from "./components/ChatList";
 import { ChatListProvider } from "./components/context/ChatListContext";
-import Settings from "./components/Settings";
-import { Account } from "./components/Account";
+import SettingsPage from "./components/settings/Settings";
+import Account  from "./components/Account";
+import Security from "./components/Security";
 
 
 
@@ -33,15 +34,21 @@ function App() {
             <Route path="/phone" element={<Outlet />}>
               <Route path="register" element={<CreateAccount/>} />
               <Route path="login" element={<LoginPasskey/>} />
-              <Route path="devices" element={<ConnectedDevices/>}/>
-              <Route path="chats" element={<Protected><ChatList/></Protected>} />
-              <Route path="settings" element={<Protected><Settings/></Protected>} />
-              <Route path="account" element={<Protected><Account/></Protected>} />
+              <Route element={<Protected/>}>
+                <Route path="devices" element={<ConnectedDevices />} />
+                <Route path="chats" element={<ChatList />} />
+                
+                <Route path="settings" element={<Outlet />}>
+                  <Route index element={<SettingsPage />} />
+                  <Route path="security" element={<Security/>} />
+                  <Route path="account" element={<Account/>} />
+                </Route>
+              </Route>
             </Route>
-            <Route path="/scan" element={<Protected><QrProvider> <ScanPage/> </QrProvider></Protected>} />
+            <Route path="/scan" element={<QrProvider> <ScanPage/> </QrProvider>} />
             <Route path="/qr" element={<QrProvider><QRGenerator/></QrProvider>} />
-            <Route path="/chat" element={<Protected><ChatPage/></Protected>} />
-            <Route path="/chat/:chatId" element={<Protected><ChatWindow/></Protected>}/>
+            <Route path="/chat" element={<ChatPage/>} />
+            <Route path="/chat/:chatId" element={<ChatWindow/>}/>
            
           </Routes>
           </ChatListProvider>

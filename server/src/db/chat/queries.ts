@@ -19,18 +19,32 @@ export const chatWithMembersArgs = Prisma.validator<Prisma.ChatDefaultArgs>()({
   },
 });
 
-export const lastMessageSelect = Prisma.validator<Prisma.MessageDefaultArgs>()({
-  select: {
-    id: true,
-    text: true,
-    kind: true,
-    createdAt: true,
-    isDeleted: true,
-    editedAt: true,
-    senderId: true,
-    author: { select: { id: true, displayName: true, handle: true } },
+export const lastMessageSelect = {
+  id: true,
+  text: true,
+  type: true,
+  createdAt: true,
+  isDeleted: true,
+  editedAt: true,
+  senderId: true,
+  author: {
+    select: {
+      id: true,
+      displayName: true,
+      handle: true,
+    },
   },
-});
+} satisfies Prisma.MessageSelect;
+
+
+
+export const voiceMessageSelect = {
+  ...lastMessageSelect,
+
+  voiceUrl: true,
+  voiceMimeType: true,
+  voiceDurationSec: true,
+} satisfies Prisma.MessageSelect;
 
 export const memberWithUserSelect = Prisma.validator<Prisma.ChatMemberDefaultArgs>()({
   select: {
@@ -59,7 +73,7 @@ export const chatWithMembersAndLastMessageArgs = Prisma.validator<Prisma.ChatDef
     messages: {
       orderBy: { createdAt: "desc" },
       take: 1,
-      select: lastMessageSelect.select,
+      select: lastMessageSelect,
     },
   },
 })

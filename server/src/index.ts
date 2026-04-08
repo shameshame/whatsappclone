@@ -1,5 +1,6 @@
 import express from "express";
 import http from "http";
+import fs from "fs/promises";
 import { Server as SocketIOServer } from "socket.io";
 import { initRedis} from "./redis";
 import { sessionRouter } from "./routes/session.routes";
@@ -13,6 +14,7 @@ import { requireSocketAuth } from "./middleware/socketAuth";
 import cors from "cors";
 import { randomBytes } from "crypto";
 import { attachChatNamespaceHandlers } from "./chat/chatNsHandlers";
+import path from "path/win32";
 
 
 
@@ -41,6 +43,7 @@ app.use(cors());
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // issue a CSRF cookie if it's missing
 app.use((req, res, next) => {
