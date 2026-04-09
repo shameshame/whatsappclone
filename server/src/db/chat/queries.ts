@@ -21,6 +21,7 @@ export const chatWithMembersArgs = Prisma.validator<Prisma.ChatDefaultArgs>()({
 
 export const lastMessageSelect = {
   id: true,
+  chatId: true,
   text: true,
   type: true,
   createdAt: true,
@@ -73,7 +74,7 @@ export const chatWithMembersAndLastMessageArgs = Prisma.validator<Prisma.ChatDef
     messages: {
       orderBy: { createdAt: "desc" },
       take: 1,
-      select: lastMessageSelect,
+      select: voiceMessageSelect,
     },
   },
 })

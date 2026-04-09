@@ -103,7 +103,7 @@ function MessageBubble({
             onReply={onReply}
             isMe={isMe}
             canDelete={isMe}
-            canEdit={isMe}
+            canEdit={isMe && message.type === "text" && !message.isDeleted}
             isHandheld={handheld}
             align={isMe ? "start" : "end"}
           />

@@ -1,34 +1,46 @@
+import { Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { UnreadBadge } from "./UnreadBadge";
-
+import UnreadBadge from "./UnreadBadge";
+import { ChatMessage } from "@shared/types/chatMessage";
+import { getMessagePreview } from "@/utilities/getMessagePreview";
 
 type ChatItemProps = {
   name: string;
-  message?:string,
-  unreadCount?:number
-  
+  lastMessage?: ChatMessage | null;
+  unreadCount?: number;
 };
+
 
 
 export default function ChatItem({
   name,
-  message,
+  lastMessage,
   unreadCount = 0,
 }: ChatItemProps) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-2 hover:bg-gray-100 cursor-pointer">
-      {/* Avatar */}
-      <div className="w-10 h-10 bg-gray-300 rounded-full shrink-0" />
+  const preview = getMessagePreview(lastMessage);
 
-      {/* Main content */}
-      <div className="flex-1 min-w-0">
-        <p className={cn("text-left truncate",unreadCount > 0 ? "font-semibold" : "font-medium")}>{name}</p>
-        <p className="text-left text-gray-500 text-xs truncate">
-          {message}
+  return (
+    <div className="flex cursor-pointer items-center gap-3 px-4 py-2 hover:bg-gray-100">
+      <div className="h-10 w-10 shrink-0 rounded-full bg-gray-300" />
+
+      <div className="min-w-0 flex-1">
+        <p
+          className={cn(
+            "truncate text-left",
+            unreadCount > 0 ? "font-semibold" : "font-medium"
+          )}
+        >
+          {name}
         </p>
+
+        <div className="flex items-center gap-1 text-left text-xs text-gray-500">
+          {lastMessage?.type === "voice" && (
+            <Mic className="h-3.5 w-3.5 shrink-0" />
+          )}
+          <p className="truncate">{preview}</p>
+        </div>
       </div>
 
-      {/* Unread badge */}
       {unreadCount > 0 && (
         <div className="ml-2">
           <UnreadBadge count={unreadCount} />

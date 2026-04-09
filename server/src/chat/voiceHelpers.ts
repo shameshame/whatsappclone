@@ -3,6 +3,34 @@ import path from "path";
 import { assertMemberOfChat } from "../db/chat/chat";
 import { Prisma } from "@prisma/client";
 import { voiceMessageSelect } from "../db/chat/queries";
+import { VoiceRequestData, StoredVoiceFile } from "../types/voiceTypes";
+import multer from "multer";
+
+
+
+export const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10 MB
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      "audio/webm",
+      "audio/ogg",
+      "audio/mpeg",
+      "audio/mp4",
+      "audio/wav",
+      "audio/x-wav",
+    ];
+
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+      return;
+    }
+
+    cb(new Error(`unsupported-audio-type:${file.mimetype}`));
+  },
+});
 
 
 
@@ -119,8 +147,11 @@ export function toVoiceMessageDto(created: {
     handle: string | null;
   };
 }) {
+  
+  const {voiceUrl,voiceMimeType,voiceDurationSec,...rest} = created;
+
   return {
-    ...created,
+    ...rest,
     voice: {
       url: created.voiceUrl,
       mimeType: created.voiceMimeType,

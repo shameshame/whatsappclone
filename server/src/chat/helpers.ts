@@ -2,6 +2,9 @@ import { ChatMemberRole } from "@prisma/client";
 import { ChatMemberWithUser, ChatWithSummaryRelations, LastMessageSelected } from "../db/chat/types";
 import { ChatSummary } from "@shared/types/chatSummary";
 import multer from "multer";
+import { ChatMessage } from "@shared/types/chatMessage";
+import { DbLastMessage } from "../types/lastMessage";
+import { DbChat } from "@shared/types/dbChat";
 
 const CHAT_NS = "/chat";
 
@@ -45,12 +48,39 @@ export function buildMemberRows(
   }));
 }
 
+export function normalizeMessage(message: DbLastMessage | null | undefined): ChatMessage | null {
+  if (!message) return null;
+
+  return {
+    id: message.id,
+    chatId: message.chatId, // fill this if selected on backend; otherwise okay for list preview only
+    senderId: message.senderId,
+    text: message.text ?? undefined,
+    createdAt: message.createdAt instanceof Date
+    ? message.createdAt
+    : new Date(message.createdAt),
+    replyToId: message.replyToId ?? null,
+    reactions: [],
+    type: message.type,
+    isDeleted: message.isDeleted ?? false,
+    deletedAt: message.deletedAt ?? null,
+    voice:
+      message.type === "voice"
+        ? {
+            url: message.voiceUrl ?? "",
+            mimeType: message.voiceMimeType ?? "audio/webm",
+            durationSec: message.voiceDurationSec ?? 0,
+          }
+        : undefined,
+  };
+}
+
 export function populateLastMessageProp(lastMessage:LastMessageSelected|null) {
 
     return lastMessage && {
           id: lastMessage.id,
           text: lastMessage.isDeleted ? null : lastMessage.text,
-          kind: lastMessage.kind,
+          type: lastMessage.type,
           createdAt: lastMessage.createdAt.toISOString(),
           editedAt: lastMessage.editedAt?.toISOString() || null,
           isDeleted: lastMessage.isDeleted,
@@ -62,57 +92,41 @@ export function populateLastMessageProp(lastMessage:LastMessageSelected|null) {
     }
 }
 
-export function toChatSummary(
-  chat: ChatWithSummaryRelations,
-  meId: string
-): ChatSummary {
-  const lastMessage = chat.messages[0] ?? null;
-  const myMember = chat.members.find(member => member.user.id === meId) ?? null;
+export function toChatSummary(chat: DbChat, me: string): ChatSummary {
+  const participants = chat.members.map((member) => ({
+    id: member.user.id,
+    displayName: member.user.displayName ?? "",
+    handle: member.user.handle ?? "",
+    role: member.role,
+  }));
+
+  const myMembership = chat.members.find((member) => member.user.id === me);
+
+  const lastMessageRow = chat.messages[0] ?? null;
+  const lastMessage = normalizeMessage(lastMessageRow);
+
+  
 
   return {
     id: chat.id,
-    type: chat.type, // "DM" | "GROUP"
+    type: chat.type,
     name: chat.name,
-    createdAt: chat.createdAt.toISOString(),
-    updatedAt: chat.updatedAt.toISOString(),
-    lastMessageAt: chat.lastMessageAt
-      ? chat.lastMessageAt.toISOString()
-      : null,
-    lastMessage: populateLastMessageProp(lastMessage),
-    participants: populateParticipantsList(chat.members),
-    me: myMember
+    createdAt: String(chat.createdAt),
+    updatedAt: String(chat.updatedAt),
+    lastMessageAt: chat.lastMessageAt ? String(chat.lastMessageAt) : null,
+    lastMessage,
+    participants,
+    me: myMembership
       ? {
-          role: myMember.role,
-          unreadCount: myMember.unreadCount,
+          role: myMembership.role,
+          unreadCount: myMembership.unreadCount,
         }
       : null,
   };
 }
 
-// Multer setup for handling voice message uploads
 
-export const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10 MB
-  },
-  fileFilter: (_req, file, cb) => {
-    const allowed = [
-      "audio/webm",
-      "audio/ogg",
-      "audio/mpeg",
-      "audio/mp4",
-      "audio/wav",
-      "audio/x-wav",
-    ];
 
-    if (allowed.includes(file.mimetype)) {
-      cb(null, true);
-      return;
-    }
 
-    cb(new Error(`unsupported-audio-type:${file.mimetype}`));
-  },
-});
 
 

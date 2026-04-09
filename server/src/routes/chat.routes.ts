@@ -1,7 +1,8 @@
 import { getChatHistory,sendTextMessage,getAllMyChats,deleteMessage,editMessage,openOrCreateDm, reactToMessage, markChatRead, sendVoiceMessage } from "../services/chat.service";
 import { requireAuth } from "../middleware/requireAuth";
 import { Router } from "express";
-import { upload } from "../chat/helpers";
+import { upload } from "../chat/voiceHelpers";
+
 
 
 

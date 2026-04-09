@@ -82,7 +82,7 @@ export function MessageActionsMenu(props: ActionsMenuProps) {
   };
 
   const actions = useMemo(
-    () => menuActions({ message, isMe, canDelete, canEdit }),
+    () => menuActions({ message, isMe, canDelete, canEdit : canEdit&& message.type === "text" }),
     [message, isMe, canDelete, canEdit]
   );
 
@@ -95,13 +95,15 @@ export function MessageActionsMenu(props: ActionsMenuProps) {
         onPick={(emoji) => onReact(message.id, emoji)}
       />
 
-      <EditMessageDialog
-        open={editOpen}
+     {message.type==="text" && 
+        <EditMessageDialog
+          open={editOpen}
         onOpenChange={setEditOpen}
         isHandheld={isHandheld}
-        initialText={message.text}
+        initialText={message.text ?? ""}
         onSave={(nextText) => onEdit(message.id, nextText)}
       />
+      }
     </>
   );
 

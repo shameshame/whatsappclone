@@ -2,10 +2,9 @@ import { RequestHandler } from "express";
 import { PrismaClient } from "@prisma/client";
 import { allChatsQuery, assertMemberOfChat, ensureDmChat, getReactionCounts, reactionSummary} from "../db/chat/chat";
 import { loadOwnedMessageOrThrow, assertWithinEditWindowOrThrow } from "../chat/dm.guards";
-import { emitToChatRoom,emitToUser,toChatSummary } from "../chat/helpers";
-import fs from "fs/promises";
-import path from "path";
+import { emitToChatRoom,emitToUser,normalizeMessage,toChatSummary } from "../chat/helpers";
 import { getVoiceRequestData, storeVoiceFile, createVoiceMessageInTx } from "../chat/voiceHelpers";
+import { voiceMessageSelect } from "../db/chat/queries";
 
 
 
@@ -71,7 +70,7 @@ export const getAllMyChats: RequestHandler = async (req, res,next) => {
 
 
 export const getChatHistory: RequestHandler = async (req: any, res: any) => {
-  const me = (req as any).user.id as string;
+  const me = req.user.id as string;
   const { chatId } = req.params as { chatId: string };
 
   const beforeISO = req.query.before as string | undefined;
@@ -79,55 +78,62 @@ export const getChatHistory: RequestHandler = async (req: any, res: any) => {
   const before = new Date(beforeISO ?? Date.now());
 
   try {
-    // ✅ must be a member (DM or GROUP)
     await assertMemberOfChat(prisma as any, chatId, me);
 
-    // fetch limit+1 for cursor
     const rows = await prisma.message.findMany({
-      where: { chatId, createdAt: { lt: before } },
+      where: {
+        chatId,
+        createdAt: { lt: before },
+      },
       orderBy: { createdAt: "desc" },
       take: limit + 1,
-      select: {
-        id: true,
-        chatId: true,
-        senderId: true,
-        text: true,
-        createdAt: true,
-        // keep if you have them
-        isDeleted: true,
-      },
+      select: voiceMessageSelect,
     });
 
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
-
-    // You currently reverse for UI: newest last ✅
     const messagesNewestLast = [...page].reverse();
-    const nextCursor = hasMore ? page[page.length - 1]!.createdAt.toISOString() : null;
 
-    const messageIds = messagesNewestLast.map(m => m.id);
+    const nextCursor = hasMore
+      ? page[page.length - 1]!.createdAt.toISOString()
+      : null;
 
-    // no messages → return early
-    if (!messageIds.length) return res.json({ messages: [], nextCursor });
-    
+    const messageIds = messagesNewestLast.map((message) => message.id);
 
-    // ✅ counts per (messageId, emoji)
-    const reactionsMap = await getReactionCounts(me,messageIds);
+    if (!messageIds.length) {
+      return res.json({ messages: [], nextCursor });
+    }
+
+    const reactionsMap = await getReactionCounts(me, messageIds);
+
+    const messages = messagesNewestLast.map((row) => {
+      const normalized = normalizeMessage(row);
+
+      if (!normalized) return null;
+
+      return {
+        ...normalized,
+        text: row.isDeleted ? "" : normalized.text,
+        createdAt: new Date(normalized.createdAt),
+        deletedAt: normalized.deletedAt
+          ? new Date(normalized.deletedAt)
+          : null,
+        reactions: reactionsMap.get(row.id) ?? [],
+      };
+    }).filter(Boolean);
 
     return res.json({
-      messages: messagesNewestLast.map(message => ({
-        id: message.id,
-        chatId: message.chatId,
-        senderId: message.senderId,
-        text: (message as any).isDeleted ? "" : message.text,
-        createdAt: message.createdAt.toISOString(),
-        reactions: reactionsMap.get(message.id) ?? [],
-      })),
+      messages,
       nextCursor,
     });
   } catch (err: any) {
     const status = err?.status ?? 500;
-    return res.status(status).json({ ok: false, code: err?.message ?? "history-failed" });
+    console.error("getChatHistory error:", err);
+    return res.status(status).json({
+      ok: false,
+      code: err?.message ?? "history-failed",
+    });
+
   }
 };
 

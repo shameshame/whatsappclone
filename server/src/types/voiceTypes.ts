@@ -1,4 +1,4 @@
-type VoiceRequestData = {
+export type VoiceRequestData = {
   me: string;
   chatId: string;
   file: Express.Multer.File;
@@ -7,6 +7,6 @@ type VoiceRequestData = {
   durationSec: number;
 };
 
-type StoredVoiceFile = {
+export type StoredVoiceFile = {
   publicUrl: string;
 };

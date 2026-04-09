@@ -32,7 +32,16 @@ export function menuActions(args: {
 }): MenuAction[] {
   const { message, isMe, canDelete = true, canEdit = true } = args;
 
-  const editable = isMe && canEdit && canEditWindow(message.createdAt);
+  const editable =
+  isMe &&
+  canEdit &&
+  message.createdAt &&
+  canEditWindow(
+    message.createdAt instanceof Date
+      ? message.createdAt
+      : new Date(message.createdAt)
+  );
+  
   const deletable = isMe && canDelete;
 
   return [

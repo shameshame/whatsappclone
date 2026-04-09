@@ -1,7 +1,7 @@
 import { ReactionSummary } from "./reactionSummary";
 import { VoiceAttachment } from "./voiceAttachment";
 
-export type ChatMessageType = "text" | "voice";
+export type ChatMessageType = "text" | "voice" | "image";
 
 export type ChatMessage = {
   id: string;

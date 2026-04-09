@@ -1,4 +1,4 @@
-export function UnreadBadge({ count }: { count: number }) {
+export default function UnreadBadge({ count }: { count: number }) {
   if (count <= 0) return null;
 
   return (

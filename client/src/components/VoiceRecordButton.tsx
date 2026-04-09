@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, Square, X } from "lucide-react";
+import { Mic } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -16,7 +16,7 @@ export default function VoiceRecorderButton({
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef<number | null>(null);
-  const cancelledRef = useRef(false);
+  const shouldSendRef = useRef(false);
 
   const [recording, setRecording] = useState(false);
   const [sending, setSending] = useState(false);
@@ -45,7 +45,7 @@ export default function VoiceRecorderButton({
     streamRef.current = null;
   }
 
-  async function startRecording() {
+  async function beginRecording() {
     if (disabled || sending || recording) return;
 
     try {
@@ -59,7 +59,7 @@ export default function VoiceRecorderButton({
       const recorder = new MediaRecorder(stream, { mimeType });
 
       chunksRef.current = [];
-      cancelledRef.current = false;
+      shouldSendRef.current = false;
       startedAtRef.current = Date.now();
       setElapsedSec(0);
 
@@ -84,9 +84,11 @@ export default function VoiceRecorderButton({
 
         cleanupStream();
 
-        if (cancelledRef.current) {
+        const shouldSend = shouldSendRef.current;
+        shouldSendRef.current = false;
+
+        if (!shouldSend) {
           chunksRef.current = [];
-          cancelledRef.current = false;
           setElapsedSec(0);
           return;
         }
@@ -118,14 +120,39 @@ export default function VoiceRecorderButton({
     }
   }
 
-  function stopRecording() {
+  function finishRecordingAndSend() {
     if (!recorderRef.current || recorderRef.current.state === "inactive") return;
+    shouldSendRef.current = true;
     recorderRef.current.stop();
   }
 
   function cancelRecording() {
-    cancelledRef.current = true;
-    stopRecording();
+    if (!recorderRef.current || recorderRef.current.state === "inactive") return;
+    shouldSendRef.current = false;
+    recorderRef.current.stop();
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      void beginRecording();
+  }
+
+  function handlePointerUp(event: React.PointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    finishRecordingAndSend();
+  }
+
+  function handlePointerLeave() {
+    if (recording) {
+      cancelRecording();
+    }
+  }
+
+  function handlePointerCancel() {
+    if (recording) {
+      cancelRecording();
+    }
   }
 
   function formatDuration(seconds: number) {
@@ -134,45 +161,28 @@ export default function VoiceRecorderButton({
     return `${mm}:${ss}`;
   }
 
-  if (recording) {
-    return (
-      <div className="flex items-center gap-2">
+  return (
+    <div className="flex items-center gap-2">
+      {recording && (
         <div className="rounded-full border px-3 py-2 text-sm">
           Recording {formatDuration(elapsedSec)}
         </div>
+      )}
 
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          onClick={cancelRecording}
-          aria-label="Cancel recording"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-
-        <Button
-          type="button"
-          size="icon"
-          onClick={stopRecording}
-          aria-label="Stop recording"
-        >
-          <Square className="h-4 w-4" />
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <Button
-      type="button"
-      size="icon"
-      variant="outline"
-      onClick={startRecording}
-      disabled={disabled || sending}
-      aria-label="Record voice message"
-    >
-      <Mic className="h-4 w-4" />
-    </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant={recording ? "default" : "outline"}
+        disabled={disabled || sending}
+        aria-label={recording ? "Release to send voice message" : "Hold to record voice message"}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
+        onPointerCancel={handlePointerCancel}
+        className="touch-none select-none"
+      >
+        <Mic className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }
