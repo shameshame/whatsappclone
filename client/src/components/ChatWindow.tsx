@@ -115,7 +115,7 @@ export default function ChatWindow() {
             <AvatarImage src="https://i.pravatar.cc/150?u=alice" className="w-full h-full object-cover"/>
           </Avatar>
           <span className="text-lg font-medium">Alice</span>
-            {/* <ChatTopMenu messages={messages}/> */}
+            <ChatTopMenu messages={messages}/>
       </div>
       </div>
       
