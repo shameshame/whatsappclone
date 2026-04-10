@@ -1,47 +1,63 @@
-import { useState } from 'react';
-import { Drawer, DrawerTrigger, DrawerContent } from '@/components/ui/drawer';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Search } from 'lucide-react';
+import { useMemo, useState } from "react";
+import { Drawer, DrawerTrigger, DrawerContent } from "@/components/ui/drawer";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
+import { ChatMessage } from "@shared/types/chatMessage";
 
-export function ChatSearch({ messages }: { messages: { id: string; text: string }[] }) {
-  const [searchTerm, setSearchTerm] = useState('');
+type ChatSearchProps = {
+  messages: ChatMessage[];
+};
 
-  const filteredMessages = messages.filter((msg) =>
-    msg.text.toLowerCase().includes(searchTerm.toLowerCase())
+export function ChatSearch({ messages }: ChatSearchProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const searchableMessages = useMemo(
+    () =>
+      messages.filter(
+        (message) =>
+          message.type === "text" &&
+          !message.isDeleted &&
+          typeof message.text === "string" &&
+          message.text.trim() !== ""
+      ),
+    [messages]
   );
+
+  const filteredMessages = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    if (!term) return [];
+
+    return searchableMessages.filter((message) =>
+      (message.text ?? "").toLowerCase().includes(term)
+    );
+  }, [searchTerm, searchableMessages]);
 
   return (
     <Drawer direction="right">
-      {/* Trigger Button (Search Icon) */}
       <DrawerTrigger asChild>
-        <div className="cursor-pointer p-2 rounded hover:bg-gray-100 transition">
-          <Search className="cursor-pointer h-5 w-5" />
+        <div className="cursor-pointer rounded p-2 transition hover:bg-gray-100">
+          <Search className="h-5 w-5 cursor-pointer" />
         </div>
       </DrawerTrigger>
 
-      {/* Slide-in Drawer */}
-      <DrawerContent className="h-full max-w-sm ml-auto p-4 flex flex-col border-l">
-        {/* Search Input */}
+      <DrawerContent className="ml-auto flex h-full max-w-sm flex-col border-l p-4">
         <Input
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="mb-4"
+          placeholder="Search text messages"
         />
 
-        
-
-        {/* Results */}
-        <div className="flex-1 overflow-y-auto space-y-2">
-          {searchTerm==='' 
-           ? <div><p>Search for messages</p></div> 
-           :filteredMessages.length === 0 
-            ? (
-            <p className="text-muted-foreground text-sm">No messages found.</p>
+        <div className="flex-1 space-y-2 overflow-y-auto">
+          {searchTerm === "" ? (
+            <p>Search for messages</p>
+          ) : filteredMessages.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No messages found.</p>
           ) : (
-            filteredMessages.map((msg) => (
-              <div key={msg.id} className="bg-muted p-2 rounded text-sm">
-                {msg.text}
+            filteredMessages.map((message) => (
+              <div key={message.id} className="rounded bg-muted p-2 text-sm">
+                {message.text}
               </div>
             ))
           )}

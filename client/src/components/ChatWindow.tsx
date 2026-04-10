@@ -115,12 +115,12 @@ export default function ChatWindow() {
             <AvatarImage src="https://i.pravatar.cc/150?u=alice" className="w-full h-full object-cover"/>
           </Avatar>
           <span className="text-lg font-medium">Alice</span>
-            <ChatTopMenu messages={messages}/>
+            {/* <ChatTopMenu messages={messages}/> */}
       </div>
       </div>
       
       {/* Messages */}
-      <div ref={windowRef} className="overflow-y-auto p-4 space-y-8  h-screen">
+       <div ref={windowRef} className="overflow-y-auto p-4 space-y-8  h-screen">
         {loading ? <div>Loading…</div> : null}
         {messages.map((message: ChatMessage) => 
               <MessageBubble
@@ -133,9 +133,23 @@ export default function ChatWindow() {
               />
             
         )}
-      </div>
+      </div> 
+
+      <div ref={windowRef} className="overflow-y-auto p-4 space-y-8 h-screen">
+  {loading ? <div>Loading…</div> : null}
+
+  {/* {messages.map((message: ChatMessage) => (
+    <div key={message.id} className="rounded border bg-white p-2 text-xs">
+      <div>id: {message.id}</div>
+      <div>type: {message.type}</div>
+      <div>text: {String(message.text ?? "")}</div>
+      <div>voice url: {message.voice?.url ?? "none"}</div>
+      <div>createdAt: {String(message.createdAt)}</div>
+    </div>
+  ))} */}
+</div>
       
-      {/* Input */}
+      
       <div className="sticky bottom-0 border-t p-2 flex items-center gap-2">
         <Input
           placeholder="Type a message"
@@ -151,7 +165,9 @@ export default function ChatWindow() {
         <Button size="icon" onClick={onSendTextMessage} disabled={!input.trim()}>
           <Send className="h-4 w-4" />
         </Button>
+        
       </div>
+      
     </div>
   )
 }

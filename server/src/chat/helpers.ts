@@ -1,7 +1,6 @@
 import { ChatMemberRole } from "@prisma/client";
-import { ChatMemberWithUser, ChatWithSummaryRelations, LastMessageSelected } from "../db/chat/types";
+import { ChatMemberWithUser, LastMessageSelected } from "../db/chat/types";
 import { ChatSummary } from "@shared/types/chatSummary";
-import multer from "multer";
 import { ChatMessage } from "@shared/types/chatMessage";
 import { DbLastMessage } from "../types/lastMessage";
 import { DbChat } from "@shared/types/dbChat";

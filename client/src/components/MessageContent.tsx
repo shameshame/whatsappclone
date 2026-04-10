@@ -10,11 +10,31 @@ function MessageContent({
   message: MessageBubbleProps["message"];
   isMe: boolean;
 }) {
+
+  if (!message) {
+    return <p className="px-2 italic">Invalid message</p>;
+  }
+
+  
+
+  
   
   const kind = message.type ?? "text";
+
+  
   
   
   if (kind === "voice" && message.voice) {
+    if (!message.voice?.url) {
+      return (
+        <p className={cn("px-2 italic", isMe ? "text-white/80" : "text-muted-foreground")}>
+          Voice message unavailable
+        </p>
+      );
+    }
+    
+    
+    
     return (
       <div className="px-2">
         <div className="mb-2 flex items-center gap-2">
