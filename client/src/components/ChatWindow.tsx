@@ -135,21 +135,6 @@ export default function ChatWindow() {
         )}
       </div> 
 
-      <div ref={windowRef} className="overflow-y-auto p-4 space-y-8 h-screen">
-  {loading ? <div>Loading…</div> : null}
-
-  {/* {messages.map((message: ChatMessage) => (
-    <div key={message.id} className="rounded border bg-white p-2 text-xs">
-      <div>id: {message.id}</div>
-      <div>type: {message.type}</div>
-      <div>text: {String(message.text ?? "")}</div>
-      <div>voice url: {message.voice?.url ?? "none"}</div>
-      <div>createdAt: {String(message.createdAt)}</div>
-    </div>
-  ))} */}
-</div>
-      
-      
       <div className="sticky bottom-0 border-t p-2 flex items-center gap-2">
         <Input
           placeholder="Type a message"
